@@ -11,10 +11,10 @@ import (
 )
 
 type Categories struct {
-	Id      int       `json:"id" gorm:"primaryKey autoIncrement"`
-	Nama    string    `json:"nama"`
-	Minuman []Minuman `gorm:"foreignKey:Categories_id"`
-	Makanan []Makanan `gorm:"foreignKey:Categories_id"`
+	Id   int    `json:"id" gorm:"primaryKey autoIncrement"`
+	Nama string `json:"nama"`
+	//Minuman []Minuman `gorm:"foreignKey:Categories_id"`
+	//Makanan []Makanan `gorm:"foreignKey:Categories_id"`
 }
 
 type Minuman struct {
