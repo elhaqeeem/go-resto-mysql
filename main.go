@@ -80,57 +80,6 @@ type BaseRespose struct {
 func main() {
 	//	loadEnv()
 	InitDatabase()
-	categories := []Categories{
-		{Nama: "Minuman"},
-		{Nama: "Makanan"},
-		{Nama: "Promo"},
-	}
-	DB.Create(&categories)
-
-	// Retrieve category IDs
-	var minumanCategory, makananCategory Categories
-	DB.Where("nama = ?", "Minuman").First(&minumanCategory)
-	DB.Where("nama = ?", "Makanan").First(&makananCategory)
-
-	// Insert drinks
-	drinks := []Minuman{
-		{Nama: "Jeruk", Varian: "Dingin", Harga: 12000, Categories_id: uint(minumanCategory.Id)},
-		{Nama: "Jeruk", Varian: "Panas", Harga: 10000, Categories_id: uint(minumanCategory.Id)},
-		{Nama: "Teh", Varian: "Manis", Harga: 8000, Categories_id: uint(minumanCategory.Id)},
-		{Nama: "Teh", Varian: "Tawar", Harga: 5000, Categories_id: uint(minumanCategory.Id)},
-		{Nama: "Kopi", Varian: "Dingin", Harga: 8000, Categories_id: uint(minumanCategory.Id)},
-		{Nama: "Kopi", Varian: "Panas", Harga: 6000, Categories_id: uint(minumanCategory.Id)},
-		{Nama: "Es Batu", Varian: "", Harga: 2000, Categories_id: uint(minumanCategory.Id)},
-	}
-	DB.Create(&drinks)
-
-	// Insert foods
-	foods := []Makanan{
-		{Nama: "Mie", Varian: "Goreng", Harga: 15000, Categories_id: uint(makananCategory.Id)},
-		{Nama: "Mie", Varian: "Kuah", Harga: 15000, Categories_id: uint(makananCategory.Id)},
-		{Nama: "Nasi Goreng", Varian: "", Harga: 15000, Categories_id: uint(makananCategory.Id)},
-	}
-	DB.Create(&foods)
-
-	// Insert promo
-	promo := Promo{Nama: "Nasi Goreng + Jeruk Dingin", Harga: 23000}
-	DB.Create(&promo)
-
-	// Insert printers
-	printers := []Printer{
-		{ID: "A", Nama: "Printer Kasir"},
-		{ID: "B", Nama: "Printer Dapur (Makanan)"},
-		{ID: "C", Nama: "Printer Bar (Minuman)"},
-	}
-	DB.Create(&printers)
-
-	// Insert tables
-	tables := []Meja{
-		{Nomor: 1},
-		{Nomor: 2},
-		{Nomor: 3},
-	}
-	DB.Create(&tables)
 
 	var meja Meja
 	if err := DB.Where("nomor = ?", 1).First(&meja).Error; err != nil {
