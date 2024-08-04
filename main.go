@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"time"
@@ -79,49 +78,7 @@ type BaseRespose struct {
 
 func main() {
 	//	loadEnv()
-
 	InitDatabase()
-	var meja Meja
-	if err := DB.Where("nomor = ?", 1).First(&meja).Error; err != nil {
-		log.Fatal("Failed to find table 1:", err)
-	}
-	order := Orders{MejaID: meja.ID}
-	if err := DB.Create(&order).Error; err != nil {
-		log.Fatal("Failed to create order:", err)
-	}
-
-	// Insert order items
-	var orderID = order.ID
-	var esBatu, kopiPanas, promoItem, tehManis, mieGoreng Minuman
-
-	if err := DB.Where("nama = ?", "Es Batu").First(&esBatu).Error; err != nil {
-		log.Fatal("Failed to find Es Batu:", err)
-	}
-	if err := DB.Where("nama = ? AND varian = ?", "Kopi", "Panas").First(&kopiPanas).Error; err != nil {
-		log.Fatal("Failed to find Kopi Panas:", err)
-	}
-	if err := DB.Where("nama = ?", "Nasi Goreng + Jeruk Dingin").First(&promoItem).Error; err != nil {
-		log.Fatal("Failed to find Promo:", err)
-	}
-	if err := DB.Where("nama = ? AND varian = ?", "Teh", "Manis").First(&tehManis).Error; err != nil {
-		log.Fatal("Failed to find Teh Manis:", err)
-	}
-	if err := DB.Where("nama = ? AND varian = ?", "Mie", "Goreng").First(&mieGoreng).Error; err != nil {
-		log.Fatal("Failed to find Mie Goreng:", err)
-	}
-
-	orderItems := []OrderItems{
-		{OrderID: orderID, ItemType: "Minuman", ItemID: esBatu.ID, Jumlah: 1},
-		{OrderID: orderID, ItemType: "Minuman", ItemID: kopiPanas.ID, Jumlah: 1},
-		{OrderID: orderID, ItemType: "Promo", ItemID: promoItem.ID, Jumlah: 2},
-		{OrderID: orderID, ItemType: "Minuman", ItemID: tehManis.ID, Jumlah: 1},
-		{OrderID: orderID, ItemType: "Makanan", ItemID: mieGoreng.ID, Jumlah: 1},
-	}
-	if err := DB.Create(&orderItems).Error; err != nil {
-		log.Fatal("Failed to insert order items:", err)
-	}
-
-	log.Println("Data inserted successfully")
 	e := echo.New()
 	e.GET("/categories", GetUsersController)
 	e.POST("/categories", AddUsersController)
