@@ -14,60 +14,60 @@ import (
 type Categories struct {
 	Id      int       `json:"id" gorm:"primaryKey autoIncrement"`
 	Nama    string    `json:"nama"`
-	Minuman []Minuman `gorm:"foreignKey:Categories_id"`
-	Makanan []Makanan `gorm:"foreignKey:Categories_id"`
+	Minuman []Minuman `json:"minuman" gorm:"foreignKey:Categories_id"`
+	Makanan []Makanan `json:"makanan" gorm:"foreignKey:Categories_id"`
 }
 
 type Minuman struct {
-	ID            uint       `gorm:"primaryKey"`
-	Nama          string     `gorm:"size:50;not null"`
-	Varian        string     `gorm:"size:50"`
-	Harga         float64    `gorm:"not null;type:decimal(10,2)"`
-	Categories_id uint       // Foreign Key
-	Categories    Categories `gorm:"foreignKey:Categories_id;constraint:OnDelete:CASCADE;"`
+	ID            uint       `json:"id" gorm:"primaryKey"`
+	Nama          string     `json:"nama" gorm:"size:50;not null"`
+	Varian        string     `json:"varian" gorm:"size:50"`
+	Harga         float64    `json:"harga" gorm:"not null;type:decimal(10,2)"`
+	Categories_id uint       `json:"categories_id"` // Foreign Key
+	Categories    Categories `json:"categories" gorm:"foreignKey:Categories_id;constraint:OnDelete:CASCADE;"`
 }
 
 type Makanan struct {
-	ID            uint       `gorm:"primaryKey"`
-	Nama          string     `gorm:"size:50;not null"`
-	Varian        string     `gorm:"size:50"`
-	Harga         float64    `gorm:"not null;type:decimal(10,2)"`
-	Categories_id uint       // Foreign Key
-	Categories    Categories `gorm:"foreignKey:Categories_id;constraint:OnDelete:CASCADE;"`
+	ID            uint       `json:"id" gorm:"primaryKey"`
+	Nama          string     `json:"nama" gorm:"size:50;not null"`
+	Varian        string     `json:"varian" gorm:"size:50"`
+	Harga         float64    `json:"harga" gorm:"not null;type:decimal(10,2)"`
+	Categories_id uint       `json:"categories_id"` // Foreign Key
+	Categories    Categories `json:"categories" gorm:"foreignKey:Categories_id;constraint:OnDelete:CASCADE;"`
 }
 
 type Promo struct {
-	ID    uint    `gorm:"primaryKey"`
-	Nama  string  `gorm:"size:100;not null"`
-	Harga float64 `gorm:"not null;type:decimal(10,2)"`
+	ID    uint    `json:"id" gorm:"primaryKey"`
+	Nama  string  `json:"nama" gorm:"size:100;not null"`
+	Harga float64 `json:"harga" gorm:"not null;type:decimal(10,2)"`
 }
 
 type Printer struct {
-	ID   string `gorm:"primaryKey;size:1"`
-	Nama string `gorm:"size:50;not null"`
+	ID   string `json:"id" gorm:"primaryKey;size:1"`
+	Nama string `json:"nama" gorm:"size:50;not null"`
 }
 
 type Meja struct {
-	ID    uint `gorm:"primaryKey"`
-	Nomor int  `gorm:"not null"`
+	ID    uint `json:"id" gorm:"primaryKey"`
+	Nomor int  `json:"nomor" gorm:"not null"`
 }
 
 type Orders struct {
-	ID      uint      `gorm:"primaryKey"`
-	MejaID  uint      // Foreign Key
-	Tanggal time.Time `gorm:"default:CURRENT_TIMESTAMP"`
-	Meja    Meja      `gorm:"foreignKey:MejaID;constraint:OnDelete:CASCADE;"`
+	ID      uint      `json:"id" gorm:"primaryKey"`
+	MejaID  uint      `json:"meja_id"` // Foreign Key
+	Tanggal time.Time `json:"tanggal" gorm:"default:CURRENT_TIMESTAMP"`
+	Meja    Meja      `json:"meja" gorm:"foreignKey:MejaID;constraint:OnDelete:CASCADE;"`
 	// Relasi satu-ke-banyak
-	OrderItems []OrderItems `gorm:"foreignKey:OrderID"`
+	OrderItems []OrderItems `json:"orderitems" gorm:"foreignKey:OrderID"`
 }
 
 type OrderItems struct {
-	ID       uint   `gorm:"primaryKey"`
-	OrderID  uint   // Foreign Key
-	ItemType string `gorm:"type:enum('Minuman', 'Makanan', 'Promo');not null"`
-	ItemID   uint   // Foreign Key
-	Jumlah   int    `gorm:"not null"`
-	Order    Orders `gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE;"`
+	ID       uint   `json:"id" gorm:"primaryKey"`
+	OrderID  uint   `json:"order_id"` // Foreign Key
+	ItemType string `json:"itemtype" gorm:"type:enum('Minuman', 'Makanan', 'Promo');not null"`
+	ItemID   uint   `json:"items_id"` // Foreign Key
+	Jumlah   int    `json:"jumlah" gorm:"not null"`
+	Order    Orders `json:"order" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE;"`
 }
 
 type BaseRespose struct {

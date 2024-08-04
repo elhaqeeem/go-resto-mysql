@@ -142,3 +142,8 @@ INSERT INTO order_items (order_id, item_type, item_id, jumlah) VALUES (
     (SELECT id FROM makanan WHERE nama = 'Mie' AND varian = 'Goreng'),
     1
 );
+
+ALTER TABLE order_items
+ADD INDEX idx_order_id (order_id),
+ADD INDEX idx_item_type (item_type),
+ADD INDEX idx_item_id (item_id);
