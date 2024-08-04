@@ -101,14 +101,14 @@ func InitDatabase() {
 
 func Migration() {
 	DB.AutoMigrate(
-		&Categories{},
-		&Minuman{},
-		&Makanan{},
-		&Promo{},
-		&Printer{},
-		&Meja{},
-		&Orders{},
-		&OrderItem{},
+	//&Categories{},
+	//&Minuman{},
+	//&Makanan{},
+	//&Promo{},
+	//&Printer{},
+	//&Meja{},
+	//&Orders{},
+	//&OrderItem{},
 	)
 }
 
@@ -136,19 +136,24 @@ func AddUsersController(c echo.Context) error {
 func GetUsersController(c echo.Context) error {
 	var users []OrderItem
 
+	// Anda bisa menggunakan Paging jika data terlalu banyak
+	// limit := c.QueryParam("limit")
+	// offset := c.QueryParam("offset")
+	// result := DB.Limit(limit).Offset(offset).Find(&users)
+
 	result := DB.Find(&users)
 
 	if result.Error != nil {
 		return c.JSON(http.StatusInternalServerError, BaseRespose{
 			Status:  false,
-			Message: "Failed get data Order Details",
+			Message: "Failed to retrieve order details: " + result.Error.Error(),
 			Data:    nil,
 		})
 	}
 
 	return c.JSON(http.StatusOK, BaseRespose{
 		Status:  true,
-		Message: "Success get data Order Details",
+		Message: "Successfully retrieved order details",
 		Data:    users,
 	})
 }
