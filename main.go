@@ -105,7 +105,12 @@ func InitDatabase() {
 
 func Migration() {
 	DB.AutoMigrate(
-
+		&Categories{},
+		&Minuman{},
+		&Makanan{},
+		&Promo{},
+		&Printer{},
+		&Meja{},
 		&Orders{},
 		&OrderItems{},
 	)
