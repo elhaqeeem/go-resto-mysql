@@ -85,7 +85,14 @@ func InitDatabase() {
 }
 
 func Migration() {
-	DB.AutoMigrate(&Categories{})
+	DB.AutoMigrate(
+		&Categories{},
+		&Makanan{},
+		&Minuman{},
+		&Promo{},
+		&Printer{},
+		&Meja{},
+	)
 }
 
 func AddUsersController(c echo.Context) error {
