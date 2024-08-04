@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/go-redis/redis"
 	"github.com/labstack/echo/v4"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -73,6 +74,16 @@ type BaseRespose struct {
 }
 
 func main() {
+	client := redis.NewClient(&redis.Options{
+		Addr: "localhost:6379",
+	})
+
+	pong, err := client.Ping().Result()
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	fmt.Println("Redis Ping:", pong) // Output: PONG
 	//	loadEnv()
 	InitDatabase()
 
