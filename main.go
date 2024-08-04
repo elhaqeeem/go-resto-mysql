@@ -47,6 +47,11 @@ type Printer struct {
 	Nama string `gorm:"size:50;not null"`
 }
 
+type Meja struct {
+	ID    uint `gorm:"primaryKey"`
+	Nomor int  `gorm:"not null"`
+}
+
 type Orders struct {
 	ID      uint      `gorm:"primaryKey"`
 	MejaID  uint      // Foreign Key
@@ -65,11 +70,6 @@ type OrderItems struct {
 	Order    Orders `gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE;"`
 }
 
-type Meja struct {
-	ID    uint `gorm:"primaryKey"`
-	Nomor int  `gorm:"not null"`
-}
-
 type BaseRespose struct {
 	Status  bool        `json:"status"`
 	Message string      `json:"message"`
@@ -79,6 +79,7 @@ type BaseRespose struct {
 func main() {
 	//	loadEnv()
 	InitDatabase()
+
 	e := echo.New()
 	e.GET("/categories", GetUsersController)
 	e.POST("/categories", AddUsersController)
@@ -104,12 +105,7 @@ func InitDatabase() {
 
 func Migration() {
 	DB.AutoMigrate(
-		&Categories{},
-		&Makanan{},
-		&Minuman{},
-		&Promo{},
-		&Printer{},
-		&Meja{},
+
 		&Orders{},
 		&OrderItems{},
 	)
@@ -137,21 +133,21 @@ func AddUsersController(c echo.Context) error {
 }
 
 func GetUsersController(c echo.Context) error {
-	var users []Categories
+	var users []OrderItems
 
 	result := DB.Find(&users)
 
 	if result.Error != nil {
 		return c.JSON(http.StatusInternalServerError, BaseRespose{
 			Status:  false,
-			Message: "Failed get data Categories",
+			Message: "Failed get data Order Details",
 			Data:    nil,
 		})
 	}
 
 	return c.JSON(http.StatusOK, BaseRespose{
 		Status:  true,
-		Message: "Success get data Categories",
+		Message: "Success get data Order Details",
 		Data:    users,
 	})
 }
