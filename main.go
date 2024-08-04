@@ -11,8 +11,44 @@ import (
 )
 
 type Categories struct {
-	Id   int    `json:"id" gorm:"primaryKey autoIncrement"`
-	Nama string `json:"nama"`
+	Id      int       `json:"id" gorm:"primaryKey autoIncrement"`
+	Nama    string    `json:"nama"`
+	Minuman []Minuman `gorm:"foreignKey:Categories_id"`
+	Makanan []Makanan `gorm:"foreignKey:Categories_id"`
+}
+
+type Minuman struct {
+	ID            uint       `gorm:"primaryKey"`
+	Nama          string     `gorm:"size:50;not null"`
+	Varian        string     `gorm:"size:50"`
+	Harga         float64    `gorm:"not null;type:decimal(10,2)"`
+	Categories_id uint       // Foreign Key
+	Categories    Categories `gorm:"foreignKey:Categories_id;constraint:OnDelete:CASCADE;"`
+}
+
+type Makanan struct {
+	ID            uint       `gorm:"primaryKey"`
+	Nama          string     `gorm:"size:50;not null"`
+	Varian        string     `gorm:"size:50"`
+	Harga         float64    `gorm:"not null;type:decimal(10,2)"`
+	Categories_id uint       // Foreign Key
+	Categories    Categories `gorm:"foreignKey:Categories_id;constraint:OnDelete:CASCADE;"`
+}
+
+type Promo struct {
+	ID    uint    `gorm:"primaryKey"`
+	Nama  string  `gorm:"size:100;not null"`
+	Harga float64 `gorm:"not null;type:decimal(10,2)"`
+}
+
+type Printer struct {
+	ID   string `gorm:"primaryKey;size:1"`
+	Nama string `gorm:"size:50;not null"`
+}
+
+type Meja struct {
+	ID    uint `gorm:"primaryKey"`
+	Nomor int  `gorm:"not null"`
 }
 
 type BaseRespose struct {
@@ -22,23 +58,16 @@ type BaseRespose struct {
 }
 
 func main() {
-	InitDatabase()
 	//	loadEnv()
+	InitDatabase()
 	e := echo.New()
 	e.GET("/categories", GetUsersController)
 	e.POST("/categories", AddUsersController)
-	e.GET("/categories/:id", GetUserDetailController)
+
 	e.Start(":8000")
 }
 
 var DB *gorm.DB
-
-//func loadEnv() {
-//	err := godotenv.Load()
-//	if err != nil {
-//		panic("Failed load env file")
-//	}
-//}
 
 func InitDatabase() {
 	dsn := fmt.Sprintf("%v:%v@tcp(%v:%v)/%v?charset=utf8mb4&parseTime=True&loc=Local",
@@ -80,18 +109,6 @@ func AddUsersController(c echo.Context) error {
 	})
 }
 
-func GetUserDetailController(c echo.Context) error {
-	id := c.Param("id")
-
-	var users Categories = Categories{1, id}
-
-	return c.JSON(http.StatusOK, BaseRespose{
-		Status:  true,
-		Message: "Success get detail Categories",
-		Data:    users,
-	})
-}
-
 func GetUsersController(c echo.Context) error {
 	var users []Categories
 
@@ -111,3 +128,10 @@ func GetUsersController(c echo.Context) error {
 		Data:    users,
 	})
 }
+
+//func loadEnv() {
+//	err := godotenv.Load()
+//	if err != nil {
+//		panic("Failed load env file")
+//	}
+//}
