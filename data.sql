@@ -78,3 +78,67 @@ CREATE TABLE meja (
 INSERT INTO meja (nomor) VALUES (1);
 INSERT INTO meja (nomor) VALUES (2);
 INSERT INTO meja (nomor) VALUES (3);
+
+-- Tabel untuk orders (pesanan)
+CREATE TABLE orders (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    meja_id INT,
+    tanggal TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (meja_id) REFERENCES meja(id)
+);
+
+-- Tabel untuk order_items (item dalam pesanan)
+CREATE TABLE order_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id INT,
+    item_type ENUM('Minuman', 'Makanan', 'Promo') NOT NULL,
+    item_id INT,
+    jumlah INT NOT NULL,
+    FOREIGN KEY (order_id) REFERENCES orders(id),
+    FOREIGN KEY (item_id) REFERENCES (
+        SELECT id FROM minuman WHERE item_type = 'Minuman'
+        UNION ALL
+        SELECT id FROM makanan WHERE item_type = 'Makanan'
+        UNION ALL
+        SELECT id FROM promo WHERE item_type = 'Promo'
+    )
+);
+
+-- Menambahkan pesanan
+INSERT INTO orders (meja_id) VALUES ((SELECT id FROM meja WHERE nomor = 1));
+
+-- Menambahkan item pesanan
+INSERT INTO order_items (order_id, item_type, item_id, jumlah) VALUES (
+    (SELECT id FROM orders WHERE meja_id = (SELECT id FROM meja WHERE nomor = 1)),
+    'Minuman',
+    (SELECT id FROM minuman WHERE nama = 'Es Batu'),
+    1
+);
+
+INSERT INTO order_items (order_id, item_type, item_id, jumlah) VALUES (
+    (SELECT id FROM orders WHERE meja_id = (SELECT id FROM meja WHERE nomor = 1)),
+    'Minuman',
+    (SELECT id FROM minuman WHERE nama = 'Kopi' AND varian = 'Panas'),
+    1
+);
+
+INSERT INTO order_items (order_id, item_type, item_id, jumlah) VALUES (
+    (SELECT id FROM orders WHERE meja_id = (SELECT id FROM meja WHERE nomor = 1)),
+    'Promo',
+    (SELECT id FROM promo WHERE nama = 'Nasi Goreng + Jeruk Dingin'),
+    2
+);
+
+INSERT INTO order_items (order_id, item_type, item_id, jumlah) VALUES (
+    (SELECT id FROM orders WHERE meja_id = (SELECT id FROM meja WHERE nomor = 1)),
+    'Minuman',
+    (SELECT id FROM minuman WHERE nama = 'Teh' AND varian = 'Manis'),
+    1
+);
+
+INSERT INTO order_items (order_id, item_type, item_id, jumlah) VALUES (
+    (SELECT id FROM orders WHERE meja_id = (SELECT id FROM meja WHERE nomor = 1)),
+    'Makanan',
+    (SELECT id FROM makanan WHERE nama = 'Mie' AND varian = 'Goreng'),
+    1
+);

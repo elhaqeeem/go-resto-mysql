@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/driver/mysql"
@@ -45,6 +46,24 @@ type Promo struct {
 type Printer struct {
 	ID   string `gorm:"primaryKey;size:1"`
 	Nama string `gorm:"size:50;not null"`
+}
+
+type Orders struct {
+	ID      uint      `gorm:"primaryKey"`
+	MejaID  uint      // Foreign Key
+	Tanggal time.Time `gorm:"default:CURRENT_TIMESTAMP"`
+	Meja    Meja      `gorm:"foreignKey:MejaID;constraint:OnDelete:CASCADE;"`
+	// Relasi satu-ke-banyak
+	OrderItems []OrderItems `gorm:"foreignKey:OrderID"`
+}
+
+type OrderItems struct {
+	ID       uint   `gorm:"primaryKey"`
+	OrderID  uint   // Foreign Key
+	ItemType string `gorm:"type:enum('Minuman', 'Makanan', 'Promo');not null"`
+	ItemID   uint   // Foreign Key
+	Jumlah   int    `gorm:"not null"`
+	Order    Orders `gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE;"`
 }
 
 type Meja struct {
@@ -112,6 +131,48 @@ func main() {
 		{Nomor: 3},
 	}
 	DB.Create(&tables)
+
+	var meja Meja
+	if err := DB.Where("nomor = ?", 1).First(&meja).Error; err != nil {
+		log.Fatal("Failed to find table 1:", err)
+	}
+	order := Orders{MejaID: meja.ID}
+	if err := DB.Create(&order).Error; err != nil {
+		log.Fatal("Failed to create order:", err)
+	}
+
+	// Insert order items
+	var orderID = order.ID
+	var esBatu, kopiPanas, promoItem, tehManis, mieGoreng Minuman
+
+	if err := DB.Where("nama = ?", "Es Batu").First(&esBatu).Error; err != nil {
+		log.Fatal("Failed to find Es Batu:", err)
+	}
+	if err := DB.Where("nama = ? AND varian = ?", "Kopi", "Panas").First(&kopiPanas).Error; err != nil {
+		log.Fatal("Failed to find Kopi Panas:", err)
+	}
+	if err := DB.Where("nama = ?", "Nasi Goreng + Jeruk Dingin").First(&promoItem).Error; err != nil {
+		log.Fatal("Failed to find Promo:", err)
+	}
+	if err := DB.Where("nama = ? AND varian = ?", "Teh", "Manis").First(&tehManis).Error; err != nil {
+		log.Fatal("Failed to find Teh Manis:", err)
+	}
+	if err := DB.Where("nama = ? AND varian = ?", "Mie", "Goreng").First(&mieGoreng).Error; err != nil {
+		log.Fatal("Failed to find Mie Goreng:", err)
+	}
+
+	orderItems := []OrderItems{
+		{OrderID: orderID, ItemType: "Minuman", ItemID: esBatu.ID, Jumlah: 1},
+		{OrderID: orderID, ItemType: "Minuman", ItemID: kopiPanas.ID, Jumlah: 1},
+		{OrderID: orderID, ItemType: "Promo", ItemID: promoItem.ID, Jumlah: 2},
+		{OrderID: orderID, ItemType: "Minuman", ItemID: tehManis.ID, Jumlah: 1},
+		{OrderID: orderID, ItemType: "Makanan", ItemID: mieGoreng.ID, Jumlah: 1},
+	}
+	if err := DB.Create(&orderItems).Error; err != nil {
+		log.Fatal("Failed to insert order items:", err)
+	}
+
+	log.Println("Data inserted successfully")
 
 	log.Println("Records created successfully")
 
