@@ -68,14 +68,14 @@ func AddUsersController(c echo.Context) error {
 	if result.Error != nil {
 		return c.JSON(http.StatusInternalServerError, BaseRespose{
 			Status:  false,
-			Message: "Failed add data users",
+			Message: "Failed add data Categories",
 			Data:    nil,
 		})
 	}
 
 	return c.JSON(http.StatusCreated, BaseRespose{
 		Status:  true,
-		Message: "Success add data users",
+		Message: "Success add data Categories",
 		Data:    user,
 	})
 }
@@ -87,7 +87,7 @@ func GetUserDetailController(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, BaseRespose{
 		Status:  true,
-		Message: "Success get detail users",
+		Message: "Success get detail Categories",
 		Data:    users,
 	})
 }
@@ -100,14 +100,14 @@ func GetUsersController(c echo.Context) error {
 	if result.Error != nil {
 		return c.JSON(http.StatusInternalServerError, BaseRespose{
 			Status:  false,
-			Message: "Failed get data users",
+			Message: "Failed get data Categories",
 			Data:    nil,
 		})
 	}
 
 	return c.JSON(http.StatusOK, BaseRespose{
 		Status:  true,
-		Message: "Success get data users",
+		Message: "Success get data Categories",
 		Data:    users,
 	})
 }
