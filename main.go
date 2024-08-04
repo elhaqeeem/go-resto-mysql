@@ -141,7 +141,7 @@ func GetUsersController(c echo.Context) error {
 	// offset := c.QueryParam("offset")
 	// result := DB.Limit(limit).Offset(offset).Find(&users)
 
-	result := DB.Find(&users)
+	result := DB.Limit(1).Offset(1).Find(&users)
 
 	if result.Error != nil {
 		return c.JSON(http.StatusInternalServerError, BaseRespose{
