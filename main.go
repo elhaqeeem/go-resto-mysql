@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/driver/mysql"
@@ -49,25 +48,22 @@ type Printer struct {
 
 type Meja struct {
 	ID    uint `json:"id" gorm:"primaryKey"`
-	Nomor int  `json:"nomor" gorm:"not null"`
+	Nomor int  `json:"nomor" gorm:"unique;not null"`
 }
 
 type Orders struct {
-	ID      uint      `json:"id" gorm:"primaryKey"`
-	MejaID  uint      `json:"meja_id"` // Foreign Key
-	Tanggal time.Time `json:"tanggal" gorm:"default:CURRENT_TIMESTAMP"`
-	Meja    Meja      `json:"meja" gorm:"foreignKey:MejaID;constraint:OnDelete:CASCADE;"`
-	// Relasi satu-ke-banyak
-	OrderItems []OrderItems `json:"orderitems" gorm:"foreignKey:OrderID"`
+	ID     uint `json:"id" gorm:"primaryKey"`
+	MejaID uint `json:"meja_id" gorm:"not null"`
+	Meja   Meja `json:"meja" gorm:"foreignKey:MejaID"`
 }
 
-type OrderItems struct {
+type OrderItem struct {
 	ID       uint   `json:"id" gorm:"primaryKey"`
-	OrderID  uint   `json:"order_id"` // Foreign Key
-	ItemType string `json:"itemtype" gorm:"type:enum('Minuman', 'Makanan', 'Promo');not null"`
-	ItemID   uint   `json:"items_id"` // Foreign Key
+	OrderID  uint   `json:"order_id" gorm:"not null"`
+	ItemType string `json:"item_type" gorm:"not null"`
+	ItemID   uint   `json:"item_id" gorm:"not null"`
 	Jumlah   int    `json:"jumlah" gorm:"not null"`
-	Order    Orders `json:"order" gorm:"foreignKey:OrderID;constraint:OnDelete:CASCADE;"`
+	Order    Orders `json:"order" gorm:"foreignKey:OrderID"`
 }
 
 type BaseRespose struct {
@@ -112,7 +108,7 @@ func Migration() {
 		&Printer{},
 		&Meja{},
 		&Orders{},
-		&OrderItems{},
+		&OrderItem{},
 	)
 }
 
@@ -138,7 +134,7 @@ func AddUsersController(c echo.Context) error {
 }
 
 func GetUsersController(c echo.Context) error {
-	var users []OrderItems
+	var users []OrderItem
 
 	result := DB.Find(&users)
 
