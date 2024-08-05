@@ -3,6 +3,7 @@ module github.com/elhaqeeem/go-resto-mysql
 go 1.21
 
 require (
+	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v4 v4.12.0
 	gorm.io/driver/mysql v1.5.7
 	gorm.io/gorm v1.25.11
