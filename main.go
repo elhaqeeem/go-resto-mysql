@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -75,7 +74,7 @@ type BaseRespose struct {
 }
 
 func main() {
-	loadEnv()
+	//loadEnv()
 	InitDatabase()
 
 	e := echo.New()
@@ -284,9 +283,9 @@ func GetOrderDetailController(c echo.Context) error {
 	})
 }
 
-func loadEnv() {
-	err := godotenv.Load()
-	if err != nil {
-		panic("Failed load env file")
-	}
-}
+//func loadEnv() {
+//	err := godotenv.Load()
+//	if err != nil {
+//		panic("Failed load env file")
+//	}
+//}
