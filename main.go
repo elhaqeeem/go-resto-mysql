@@ -3,10 +3,11 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
-	"strconv"
 
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -15,6 +16,7 @@ import (
 // Product represents a product in the database
 type Product struct {
 	gorm.Model
+	ID       uint    `gorm:"primaryKey"`
 	Category string  `gorm:"not null"`
 	Name     string  `gorm:"not null"`
 	Varian   string  `gorm:"not null"`
@@ -23,18 +25,18 @@ type Product struct {
 
 // Order represents an order with its items
 type Order struct {
-	gorm.Model
-	TableNumber int         `gorm:"not null"`
-	Status      int         `gorm:"default:0"`
-	Items       []OrderItem `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+	ID          uint `gorm:"primaryKey"`
+	TableNumber int  // Use int here
+	Status      int
+	Items       []OrderItem
 }
 
 // OrderItem represents an item in an order
 type OrderItem struct {
-	gorm.Model
-	OrderID   uint    `gorm:"not null"`
-	ProductID uint    `gorm:"not null"`
-	Quantity  int     `gorm:"not null"`
+	ID        uint `gorm:"primaryKey"`
+	OrderID   uint
+	ProductID uint
+	Quantity  int
 	Product   Product `gorm:"foreignKey:ProductID;references:ID"`
 }
 
@@ -42,8 +44,15 @@ type OrderItem struct {
 type OrderPrinter struct {
 	gorm.Model
 	OrderID   uint    `gorm:"not null"`
-	PrinterID uint    `gorm:"not null"`
+	PrinterID string  `gorm:"size:1;not null"`
 	Printer   Printer `gorm:"foreignKey:PrinterID;references:ID"`
+}
+
+// Printer represents a printer in the system
+type Printer struct {
+	ID        string         `gorm:"size:1;primaryKey"`
+	Name      string         `gorm:"size:50;uniqueIndex"`
+	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
 
 // Promo represents a promotional discount
@@ -55,31 +64,38 @@ type Promo struct {
 	DeletedAt  gorm.DeletedAt `gorm:"index"`
 }
 
-// Printer represents a printer in the system
-type Printer struct {
-	ID        string         `gorm:"size:1;primaryKey"`
-	Nama      string         `gorm:"size:50;uniqueIndex"`
-	DeletedAt gorm.DeletedAt `gorm:"index"`
-}
-
 // Meja represents a table in the restaurant
 type Meja struct {
 	ID        uint           `gorm:"primaryKey"`
-	Nama      string         `gorm:"size:50;uniqueIndex"`
-	DeletedAt gorm.DeletedAt `gorm:"index"`
+	Nama      string         `gorm:"size:50;uniqueIndex"` // Ensures unique Nama
+	DeletedAt gorm.DeletedAt `gorm:"index"`               // Soft delete
 }
 
 // CreateOrderRequest is used for creating a new order
 type CreateOrderRequest struct {
 	TableNumber int                `json:"table_number"`
-	Items       []OrderItemRequest `json:"items"` // No GORM tags
+	Items       []OrderItemRequest `json:"items"`
 }
 
 // OrderItemRequest represents each item in the order request
 type OrderItemRequest struct {
-	ProductID int `json:"product_id"` // Changed to match the field in the database
-	Quantity  int `json:"quantity"`
+	ProductID uint `json:"product_id"`
+	Quantity  int  `json:"quantity"`
 }
+
+type CreateOrderResponse struct {
+	Status  bool      `json:"status"`
+	Message string    `json:"message"`
+	Data    OrderData `json:"data"`
+}
+
+type OrderData struct {
+	DebugInfo   []string `json:"debug_info"`
+	OrderID     uint     `json:"order_id"`
+	Printers    []string `json:"printers"`
+	TableNumber int      `json:"table_number"`
+}
+
 type BaseResponse struct {
 	Status  bool        `json:"status"`
 	Message string      `json:"message"`
@@ -87,7 +103,7 @@ type BaseResponse struct {
 }
 
 func main() {
-	//loadEnv()
+	loadEnv()
 	InitDatabase()
 
 	e := echo.New()
@@ -149,6 +165,8 @@ func Migration() {
 		&OrderItemRequest{},
 		&OrderPrinter{},
 		//&CreateOrderRequest{},
+		//&CreateOrderResponse{},
+		//&OrderData{},
 	)
 
 }
@@ -262,7 +280,7 @@ func UpdatePromoController(c echo.Context) error {
 	}
 
 	// Update fields
-	existingPromo.Nama = updatedPromo.Nama
+	existingPromo.Name = updatedPromo.Nama
 
 	result := DB.Save(&existingPromo)
 	if result.Error != nil {
@@ -408,7 +426,7 @@ func CreatePrinterController(c echo.Context) error {
 
 	// Check if printer with the same name already exists
 	var existingPrinter Printer
-	if err := DB.Where("nama = ?", printer.Nama).First(&existingPrinter).Error; err == nil {
+	if err := DB.Where("nama = ?", printer.Name).First(&existingPrinter).Error; err == nil {
 		return c.JSON(http.StatusConflict, BaseResponse{
 			Status:  false,
 			Message: "Printer with the same name already exists",
@@ -661,31 +679,6 @@ func AddMejaController(c echo.Context) error {
 }
 
 // GetMejaController retrieves a Meja by ID
-func GetMejaController(c echo.Context) error {
-	id := c.Param("id")
-	var meja Meja
-
-	if err := DB.First(&meja, id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return c.JSON(http.StatusNotFound, BaseResponse{
-				Status:  false,
-				Message: "Meja not found",
-				Data:    nil,
-			})
-		}
-		return c.JSON(http.StatusInternalServerError, BaseResponse{
-			Status:  false,
-			Message: "Failed to retrieve meja",
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusOK, BaseResponse{
-		Status:  true,
-		Message: "Meja retrieved successfully",
-		Data:    meja,
-	})
-}
 
 // UpdateMejaController updates an existing Meja entry
 func UpdateMejaController(c echo.Context) error {
@@ -918,16 +911,16 @@ func GetProductsController(c echo.Context) error {
 }
 
 // CreateOrder handles the creation of a new order
+// CreateOrder handles creating an order and assigning it to printers
 func CreateOrder(c echo.Context) error {
 	var request CreateOrderRequest
 	if err := c.Bind(&request); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request payload")
+		return createErrorResponse(c, http.StatusBadRequest, "Invalid request payload")
 	}
 
-	// Start a database transaction
 	tx := DB.Begin()
 	if tx.Error != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
+		return createErrorResponse(c, http.StatusInternalServerError, "Failed to start transaction")
 	}
 	defer func() {
 		if r := recover(); r != nil || tx.Error != nil {
@@ -942,69 +935,131 @@ func CreateOrder(c echo.Context) error {
 	}
 	if err := tx.Create(&order).Error; err != nil {
 		tx.Rollback()
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create order")
+		return createErrorResponse(c, http.StatusInternalServerError, "Failed to create order")
 	}
 
+	// Process items and handle printers as before
+	responsePrinters, debugInfo := processOrderItems(tx, request.Items, order.ID)
+
+	if err := tx.Commit().Error; err != nil {
+		return createErrorResponse(c, http.StatusInternalServerError, "Failed to commit transaction")
+	}
+
+	// Respond with the order details and printers
+	return c.JSON(http.StatusCreated, BaseResponse{
+		Status:  true,
+		Message: "Order created successfully",
+		Data: map[string]interface{}{
+			"order_id":     order.ID,
+			"table_number": order.TableNumber,
+			"printers":     responsePrinters,
+			"debug_info":   debugInfo,
+		},
+	})
+}
+
+// Helper function to handle error responses
+func createErrorResponse(c echo.Context, statusCode int, message string) error {
+	return c.JSON(statusCode, BaseResponse{
+		Status:  false,
+		Message: message,
+		Data:    nil,
+	})
+}
+
+// Function to process order items and handle printers
+func processOrderItems(tx *gorm.DB, items []OrderItemRequest, orderID uint) (map[string][]string, []string) {
 	// Map categories to printer names
 	printerMap := map[string]string{
-		"minuman": "Printer Bar",
-		"makanan": "Printer Dapur",
+		"Minuman": "Printer Bar",
+		"Makanan": "Printer Dapur",
 	}
 
-	// Store printer IDs for each category
-	printerIDs := make(map[string][]uint)
+	// Fetch all printers once
+	var allPrinters []Printer
+	if err := tx.Find(&allPrinters).Error; err != nil {
+		tx.Rollback()
+		log.Printf("Failed to find printers: %v", err)
+		return nil, []string{"Failed to find printers"}
+	}
 
-	for _, itemRequest := range request.Items {
+	// Create a map of printer names to IDs
+	printerIDs := make(map[string][]string)
+	for _, printer := range allPrinters {
+		if printer.Name != "" { // Ensure the printer has a valid name
+			printerIDs[printer.Name] = append(printerIDs[printer.Name], printer.ID)
+		}
+	}
+
+	// Initialize response data and debug information
+	responsePrinters := make(map[string][]string)
+	var debugInfo []string
+
+	for _, itemRequest := range items {
 		var product Product
 		if err := tx.Where("id = ?", itemRequest.ProductID).First(&product).Error; err != nil {
 			tx.Rollback()
-			return echo.NewHTTPError(http.StatusNotFound, "Product not found")
+			return nil, []string{"Product not found"}
 		}
 
 		orderItem := OrderItem{
-			OrderID:   order.ID,
+			OrderID:   orderID,
 			ProductID: product.ID,
 			Quantity:  itemRequest.Quantity,
 		}
 		if err := tx.Create(&orderItem).Error; err != nil {
 			tx.Rollback()
-			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create order item")
+			return nil, []string{"Failed to create order item"}
 		}
 
 		printerName, exists := printerMap[product.Category]
-		if exists && printerName != "" {
-			if _, found := printerIDs[printerName]; !found {
-				var printers []Printer
-				if err := tx.Where("nama = ?", printerName).Find(&printers).Error; err != nil {
-					tx.Rollback()
-					return echo.NewHTTPError(http.StatusInternalServerError, "Failed to find printers")
-				}
-				for _, printer := range printers {
-					printerID, err := strconv.ParseUint(printer.ID, 10, 64)
-					if err == nil {
-						printerIDs[printerName] = append(printerIDs[printerName], uint(printerID))
-					}
-				}
+		if exists {
+			ids, found := printerIDs[printerName]
+			if !found {
+				debugInfo = append(debugInfo, fmt.Sprintf("No printers found for category %s", printerName))
+				log.Printf("No printers found for category %s", printerName)
+				continue
 			}
-
-			for _, printerID := range printerIDs[printerName] {
+			log.Printf("Found printers for category %s: %+v", printerName, ids)
+			if _, ok := responsePrinters[printerName]; !ok {
+				responsePrinters[printerName] = ids
+			}
+			for _, printerID := range ids {
 				orderPrinter := OrderPrinter{
-					OrderID:   order.ID,
+					OrderID:   orderID,
 					PrinterID: printerID,
 				}
 				if err := tx.Create(&orderPrinter).Error; err != nil {
 					tx.Rollback()
-					return echo.NewHTTPError(http.StatusInternalServerError, "Failed to assign printer")
+					return nil, []string{"Failed to assign printer"}
 				}
+				log.Printf("Assigned printer %s to order %d", printerID, orderID)
 			}
+		} else {
+			debugInfo = append(debugInfo, fmt.Sprintf("No printer mapping found for product category %s", product.Category))
+			log.Printf("No printer mapping found for product category %s", product.Category)
 		}
 	}
 
-	if err := tx.Commit().Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
+	return responsePrinters, debugInfo
+}
+
+func GetMejaController(c echo.Context) error {
+	id := c.Param("id")
+	var meja Meja
+
+	if err := DB.First(&meja, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return createErrorResponse(c, http.StatusNotFound, "Meja not found")
+		}
+		return createErrorResponse(c, http.StatusInternalServerError, "Failed to retrieve meja")
 	}
 
-	return c.JSON(http.StatusCreated, order)
+	return c.JSON(http.StatusOK, BaseResponse{
+		Status:  true,
+		Message: "Meja retrieved successfully",
+		Data:    meja,
+	})
 }
 
 // GetBill retrieves and calculates the total bill for a given table
@@ -1079,9 +1134,9 @@ func containsAllProducts(items []OrderItem, productIDs []uint) bool {
 	return true
 }
 
-//func loadEnv() {
-//	err := godotenv.Load()
-//	if err != nil {
-//		panic("Failed load env file")
-//	}
-//}
+func loadEnv() {
+	err := godotenv.Load()
+	if err != nil {
+		panic("Failed load env file")
+	}
+}
