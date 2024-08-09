@@ -5,77 +5,82 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strconv"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
-type Categories struct {
-	Id        int            `json:"id" gorm:"primaryKey autoIncrement"`
-	Nama      string         `json:"nama" gorm:"size:255;uniqueIndex"`
-	DeletedAt gorm.DeletedAt `gorm:"index"`
-	//Minuman   []Minuman      `json:"minuman" gorm:"foreignKey:Categories_id"`
-	//Makanan   []Makanan      `json:"makanan" gorm:"foreignKey:Categories_id"`
+// Product represents a product in the database
+type Product struct {
+	gorm.Model
+	Category string  `gorm:"not null"`
+	Name     string  `gorm:"not null"`
+	Varian   string  `gorm:"not null"`
+	Price    float64 `gorm:"not null;type:decimal(10,2)"`
 }
 
-type Makanan struct {
-	ID            uint           `json:"id" gorm:"primaryKey"`
-	Nama          string         `json:"nama" gorm:"size:50;not null"`
-	Varian        string         `json:"varian" gorm:"size:50;uniqueIndex"`
-	Harga         float64        `json:"harga" gorm:"not null;type:decimal(10,2)"`
-	Categories_id uint           `json:"categories_id"` // Foreign Key
-	Categories    Categories     `json:"categories" gorm:"foreignKey:Categories_id;constraint:OnDelete:CASCADE;"`
-	DeletedAt     gorm.DeletedAt `gorm:"index"`
+// Order represents an order with its items
+type Order struct {
+	gorm.Model
+	TableNumber int         `gorm:"not null"`
+	Status      int         `gorm:"default:0"`
+	Items       []OrderItem `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
 }
 
-type Minuman struct {
-	ID            uint           `json:"id" gorm:"primaryKey"`
-	Nama          string         `json:"nama" gorm:"size:50;not null"`
-	Varian        string         `json:"varian" gorm:"size:50;uniqueIndex"`
-	Harga         float64        `json:"harga" gorm:"not null;type:decimal(10,2)"`
-	Categories_id uint           `json:"categories_id"` // Foreign Key
-	Categories    Categories     `json:"categories" gorm:"foreignKey:Categories_id;constraint:OnDelete:CASCADE;"`
-	DeletedAt     gorm.DeletedAt `gorm:"index"`
-}
-
-type Promo struct {
-	ID        uint           `json:"id" gorm:"primaryKey"`
-	Nama      string         `json:"nama" gorm:"size:100;;uniqueIndex"`
-	Harga     float64        `json:"harga" gorm:"not null;type:decimal(10,2)"`
-	DeletedAt gorm.DeletedAt `gorm:"index"`
-}
-
-type Printer struct {
-	ID        string         `json:"id" gorm:"primaryKey;size:1"`
-	Nama      string         `json:"nama" gorm:"size:50;not null"`
-	DeletedAt gorm.DeletedAt `gorm:"index"`
-}
-
-type Meja struct {
-	ID        uint           `json:"id" gorm:"primaryKey"`
-	Nomor     int            `json:"nomor" gorm:"unique;not null"`
-	DeletedAt gorm.DeletedAt `gorm:"index"`
-}
-
-type Orders struct {
-	ID        uint           `json:"id" gorm:"primaryKey"`
-	MejaID    uint           `json:"meja_id" gorm:"not null"`
-	Meja      Meja           `json:"meja" gorm:"foreignKey:MejaID"`
-	DeletedAt gorm.DeletedAt `gorm:"index"`
-}
-
+// OrderItem represents an item in an order
 type OrderItem struct {
-	ID        uint           `json:"id" gorm:"primaryKey"`
-	OrderID   uint           `json:"order_id" gorm:"not null"`
-	ItemType  string         `json:"item_type" gorm:"not null"`
-	ItemID    uint           `json:"item_id" gorm:"not null"`
-	Jumlah    int            `json:"jumlah" gorm:"not null"`
-	Order     Orders         `json:"order" gorm:"foreignKey:OrderID"`
+	gorm.Model
+	OrderID   uint    `gorm:"not null"`
+	ProductID uint    `gorm:"not null"`
+	Quantity  int     `gorm:"not null"`
+	Product   Product `gorm:"foreignKey:ProductID;references:ID"`
+}
+
+// OrderPrinter represents printers assigned to an order
+type OrderPrinter struct {
+	gorm.Model
+	OrderID   uint    `gorm:"not null"`
+	PrinterID uint    `gorm:"not null"`
+	Printer   Printer `gorm:"foreignKey:PrinterID;references:ID"`
+}
+
+// Promo represents a promotional discount
+type Promo struct {
+	ID         uint           `gorm:"primaryKey"`
+	Nama       string         `gorm:"size:100;uniqueIndex"`
+	Harga      float64        `gorm:"not null;type:decimal(10,2)"`
+	ProductIDs []uint         `gorm:"-"` // Excluded from DB schema
+	DeletedAt  gorm.DeletedAt `gorm:"index"`
+}
+
+// Printer represents a printer in the system
+type Printer struct {
+	ID        string         `gorm:"size:1;primaryKey"`
+	Nama      string         `gorm:"size:50;uniqueIndex"`
 	DeletedAt gorm.DeletedAt `gorm:"index"`
 }
 
-type BaseRespose struct {
+// Meja represents a table in the restaurant
+type Meja struct {
+	ID        uint           `gorm:"primaryKey"`
+	Nama      string         `gorm:"size:50;uniqueIndex"`
+	DeletedAt gorm.DeletedAt `gorm:"index"`
+}
+
+// CreateOrderRequest is used for creating a new order
+type CreateOrderRequest struct {
+	TableNumber int                `json:"table_number"`
+	Items       []OrderItemRequest `json:"items"` // No GORM tags
+}
+
+// OrderItemRequest represents each item in the order request
+type OrderItemRequest struct {
+	ProductID int `json:"product_id"` // Changed to match the field in the database
+	Quantity  int `json:"quantity"`
+}
+type BaseResponse struct {
 	Status  bool        `json:"status"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data"`
@@ -86,35 +91,33 @@ func main() {
 	InitDatabase()
 
 	e := echo.New()
-	//route api Categories
-	e.POST("/api/v1/categories", AddCategoriesController)
-	e.GET("/api/v1/categories", GetCategoriesController)
-	e.PUT("/api/v1/categories", UpdateCategoriesController)
-	e.DELETE("/api/v1/categories/:id", SoftDeleteCategoryController)
-	e.PUT("/api/v1/categories/restore/:id", RestoreCategoryController)
-	e.DELETE("/api/v1/categories/:id", DeleteCategoryController)
-	//route api Makanan
-	e.POST("/api/v1/food", AddMakananController)
-	e.GET("/api/v1/food", GetMakananController)
-	e.PUT("/api/v1/food", UpdateMakananController)
-	e.DELETE("/api/v1/food/:id", SoftDeleteMakananController)
-	e.PUT("/api/v1/food/restore/:id", RestoreMakananController)
-	e.DELETE("/api/v1/food/:id", DeleteMakananController)
-	//route api Minuman
-	e.POST("/api/v1/drink", AddMinumanController)
-	e.GET("/api/v1/drink", GetMinumanController)
-	e.PUT("/api/v1/drink", UpdateMinumanController)
-	e.DELETE("/api/v1/drink/:id", SoftDeleteMinumanController)
-	e.PUT("/api/v1/drink/restore/:id", RestoreMinumanController)
-	e.DELETE("/api/v1/drink/:id", DeleteMinumanController)
-	//route api Promo
-	e.POST("/api/v1/discount", CreatePromo)
-	e.GET("/api/v1/discount", GetPromoByID)
-	e.PUT("/api/v1/discount", UpdatePromo)
-	e.DELETE("/api/v1/discount/:id", DeletePromo)
-	//route api Meja
-	//route api Printer
 
+	//route api Promo
+	e.POST("/api/v1/discount", AddPromoController)
+	e.GET("/api/v1/discount", GetPromoByIDController)
+	e.PUT("/api/v1/discount", UpdatePromoController)
+	e.DELETE("/api/v1/discount/:id", DeletePromoController)
+	//route api Meja
+	e.POST("/api/v1/table", AddMejaController)
+	e.GET("/api/v1/table", GetMejaController)
+	e.PUT("/api/v1/table", UpdateMejaController)
+	e.DELETE("/api/v1/table/:id", SoftDeleteMejaController)
+	e.PUT("/api/v1/table/restore/:id", RestoreMejaController)
+	e.DELETE("/api/v1/table/:id", DeleteMejaController)
+	//route api Printer
+	e.POST("/api/v1/printers", CreatePrinterController)
+	e.GET("api/v1/printers", GetPrintersController)
+	e.PUT("/api/v1/printers", UpdatePrinterController)
+	e.DELETE("/api/v1/printers/:id", SoftDeletePrinterController)
+	e.PUT("/api/v1/printers/restore/:id", RestorePrinterController)
+	e.DELETE("/api/v1/printers/:id", DeletePrinterController)
+	//post menu
+	e.POST("/api/v1/product", CreateProductController)
+	e.GET("api/v1/product", GetProductsController)
+	//post order
+	e.POST("/api/v1/neworder", CreateOrder)
+	//route api Get bill
+	e.GET("/api/v1/bill/:table_number", GetBill)
 	e.Start(":8000")
 }
 
@@ -137,770 +140,65 @@ func InitDatabase() {
 
 func Migration() {
 	DB.AutoMigrate(
-	//&Categories{},
-	//&Minuman{},
-	//&Makanan{},
-	//&Promo{},
-	//&Printer{},
-	//&Meja{},
-	//&Orders{},
-	//&OrderItem{},
+		&Promo{},
+		&Printer{},
+		&Meja{},
+		&Product{},
+		&Order{},
+		&OrderItem{},
+		&OrderItemRequest{},
+		&OrderPrinter{},
+		//&CreateOrderRequest{},
 	)
-}
 
-// controller categories
-// add
-func AddCategoriesController(c echo.Context) error {
-	var user Categories
-
-	// Bind request data to user
-	if err := c.Bind(&user); err != nil {
-		return c.JSON(http.StatusBadRequest, BaseRespose{
-			Status:  false,
-			Message: "Invalid request data",
-			Data:    nil,
-		})
-	}
-
-	// Check if category already exists
-	var existingCategory Categories
-	if err := DB.Where("nama = ?", user.Nama).First(&existingCategory).Error; err == nil {
-		// If no error and a record is found
-		formattedMessage := fmt.Sprintf("Categories with nama %s already exists", user.Nama)
-		return c.JSON(http.StatusConflict, BaseRespose{
-			Status:  false,
-			Message: formattedMessage,
-			Data:    nil,
-		})
-	}
-
-	// Create new category
-	result := DB.Create(&user)
-	if result.Error != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to add category",
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusCreated, BaseRespose{
-		Status:  true,
-		Message: "Successfully added category",
-		Data:    user,
-	})
-}
-
-// read
-func GetCategoriesController(c echo.Context) error {
-	var users []Categories
-
-	result := DB.Order("nama desc").Limit(10).Find(&users)
-
-	if result.Error != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to retrieve categories: " + result.Error.Error(),
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusOK, BaseRespose{
-		Status:  true,
-		Message: "Successfully retrieved categories",
-		Data:    users,
-	})
-}
-
-// UpdateCategoriesController updates an existing category
-func UpdateCategoriesController(c echo.Context) error {
-	var category Categories
-
-	// Bind request data to category
-	if err := c.Bind(&category); err != nil {
-		return c.JSON(http.StatusBadRequest, BaseRespose{
-			Status:  false,
-			Message: "Invalid request data",
-			Data:    nil,
-		})
-	}
-
-	// Check if update category already exists
-
-	var existingCategory Categories
-	if err := DB.First(&existingCategory, category.Id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.JSON(http.StatusNotFound, BaseRespose{
-				Status:  false,
-				Message: "Category not found",
-				Data:    nil,
-			})
-		}
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to check for existing category",
-			Data:    nil,
-		})
-	}
-
-	// Update the existing category
-	result := DB.Model(&existingCategory).Updates(category)
-	if result.Error != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to update category",
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusOK, BaseRespose{
-		Status:  true,
-		Message: "Successfully updated category",
-		Data:    existingCategory,
-	})
-}
-
-// soft delete categories
-func SoftDeleteCategoryController(c echo.Context) error {
-	// Extract category ID from request
-	id := c.Param("id")
-
-	// Find the category by ID
-	var category Categories
-	if err := DB.First(&category, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.JSON(http.StatusNotFound, BaseRespose{
-				Status:  false,
-				Message: "Category not found",
-				Data:    nil,
-			})
-		}
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to find category",
-			Data:    nil,
-		})
-	}
-
-	// Perform soft delete
-	if err := DB.Delete(&category).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to delete category",
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusOK, BaseRespose{
-		Status:  true,
-		Message: "Successfully deleted category",
-		Data:    nil,
-	})
-}
-
-// restore data categories
-func RestoreCategoryController(c echo.Context) error {
-	// Extract category ID from request
-	id := c.Param("id")
-
-	// Find the category by ID (including soft-deleted records)
-	var category Categories
-	if err := DB.Unscoped().First(&category, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.JSON(http.StatusNotFound, BaseRespose{
-				Status:  false,
-				Message: "Category not found",
-				Data:    nil,
-			})
-		}
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to find category",
-			Data:    nil,
-		})
-	}
-
-	// Check if the category is already active
-	if category.DeletedAt.Time.IsZero() {
-		return c.JSON(http.StatusConflict, BaseRespose{
-			Status:  false,
-			Message: "Category is not deleted",
-			Data:    nil,
-		})
-	}
-
-	// Restore the category by setting DeletedAt to nil
-	if err := DB.Model(&category).Update("DeletedAt", nil).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to restore category",
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusOK, BaseRespose{
-		Status:  true,
-		Message: "Successfully restored category",
-		Data:    category,
-	})
-}
-
-// delete permanen data categories
-func DeleteCategoryController(c echo.Context) error {
-	id := c.Param("id")
-
-	// Find the Makanan entry by ID
-	var categories Categories
-	if err := DB.First(&categories, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.JSON(http.StatusNotFound, BaseRespose{
-				Status:  false,
-				Message: "Categories not found",
-				Data:    nil,
-			})
-		}
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to find Categories",
-			Data:    nil,
-		})
-	}
-
-	// Delete the Makanan entry
-	if err := DB.Delete(&categories).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to delete Categories",
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusOK, BaseRespose{
-		Status:  true,
-		Message: "Successfully deleted Categories",
-		Data:    nil,
-	})
-}
-
-// controller makanan
-// add makanan
-func AddMakananController(c echo.Context) error {
-	var request struct {
-		Nama         string  `json:"nama"`
-		Varian       string  `json:"varian"`
-		Harga        float64 `json:"harga"`
-		CategoriesID uint    `json:"categories_id"`
-	}
-
-	// Bind JSON request to struct
-	if err := c.Bind(&request); err != nil {
-		return c.JSON(http.StatusBadRequest, BaseRespose{
-			Status:  false,
-			Message: "Invalid request data",
-			Data:    nil,
-		})
-	}
-
-	// Create new Makanan entry
-	makanan := Makanan{
-		Nama:          request.Nama,
-		Varian:        request.Varian,
-		Harga:         request.Harga,
-		Categories_id: request.CategoriesID,
-	}
-
-	// Save to database
-	if err := DB.Create(&makanan).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to add makanan",
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusCreated, BaseRespose{
-		Status:  true,
-		Message: "Successfully added makanan",
-		Data:    makanan,
-	})
-}
-
-// read
-func GetMakananController(c echo.Context) error {
-	id := c.Param("id")
-
-	// Find the Makanan entry by ID
-	var makanan Makanan
-	if err := DB.Preload("Categories").First(&makanan, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.JSON(http.StatusNotFound, BaseRespose{
-				Status:  false,
-				Message: "Makanan not found",
-				Data:    nil,
-			})
-		}
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to retrieve makanan",
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusOK, BaseRespose{
-		Status:  true,
-		Message: "Successfully retrieved makanan",
-		Data:    makanan,
-	})
-}
-
-// update
-func UpdateMakananController(c echo.Context) error {
-	id := c.Param("id")
-	var request struct {
-		Nama         string  `json:"nama"`
-		Varian       string  `json:"varian"`
-		Harga        float64 `json:"harga"`
-		CategoriesID uint    `json:"categories_id"`
-	}
-
-	// Bind JSON request to struct
-	if err := c.Bind(&request); err != nil {
-		return c.JSON(http.StatusBadRequest, BaseRespose{
-			Status:  false,
-			Message: "Invalid request data",
-			Data:    nil,
-		})
-	}
-
-	// Find the existing Makanan entry
-	var makanan Makanan
-	if err := DB.First(&makanan, id).Error; err != nil {
-		return c.JSON(http.StatusNotFound, BaseRespose{
-			Status:  false,
-			Message: "Makanan not found",
-			Data:    nil,
-		})
-	}
-
-	// Update fields
-	makanan.Nama = request.Nama
-	makanan.Varian = request.Varian
-	makanan.Harga = request.Harga
-	makanan.Categories_id = request.CategoriesID
-
-	// Save updates to database
-	if err := DB.Save(&makanan).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to update makanan",
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusOK, BaseRespose{
-		Status:  true,
-		Message: "Successfully updated makanan",
-		Data:    makanan,
-	})
-}
-
-// softdelele makanan
-func SoftDeleteMakananController(c echo.Context) error {
-	// Extract category ID from request
-	id := c.Param("id")
-
-	// Find the category by ID
-	var makanan Makanan
-	if err := DB.First(&makanan, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.JSON(http.StatusNotFound, BaseRespose{
-				Status:  false,
-				Message: "Food not found",
-				Data:    nil,
-			})
-		}
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to find Food",
-			Data:    nil,
-		})
-	}
-
-	// Perform soft delete
-	if err := DB.Delete(&makanan).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to delete food",
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusOK, BaseRespose{
-		Status:  true,
-		Message: "Successfully deleted food",
-		Data:    nil,
-	})
-}
-
-// restore makanan
-func RestoreMakananController(c echo.Context) error {
-	// Extract category ID from request
-	id := c.Param("id")
-
-	// Find the category by ID (including soft-deleted records)
-	var makanan Makanan
-	if err := DB.Unscoped().First(&makanan, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.JSON(http.StatusNotFound, BaseRespose{
-				Status:  false,
-				Message: "Food not found",
-				Data:    nil,
-			})
-		}
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to find food",
-			Data:    nil,
-		})
-	}
-
-	// Check if the category is already active
-	if makanan.DeletedAt.Time.IsZero() {
-		return c.JSON(http.StatusConflict, BaseRespose{
-			Status:  false,
-			Message: "Food is not deleted",
-			Data:    nil,
-		})
-	}
-
-	// Restore the category by setting DeletedAt to nil
-	if err := DB.Model(&makanan).Update("DeletedAt", nil).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to restore category",
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusOK, BaseRespose{
-		Status:  true,
-		Message: "Successfully restored category",
-		Data:    makanan,
-	})
-}
-
-// delete  makanan
-func DeleteMakananController(c echo.Context) error {
-	id := c.Param("id")
-
-	// Find the Makanan entry by ID
-	var makanan Makanan
-	if err := DB.First(&makanan, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.JSON(http.StatusNotFound, BaseRespose{
-				Status:  false,
-				Message: "Makanan not found",
-				Data:    nil,
-			})
-		}
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to find makanan",
-			Data:    nil,
-		})
-	}
-
-	// Delete the Makanan entry
-	if err := DB.Delete(&makanan).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to delete makanan",
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusOK, BaseRespose{
-		Status:  true,
-		Message: "Successfully deleted makanan",
-		Data:    nil,
-	})
-}
-
-// controller minuman
-// add minuman
-func AddMinumanController(c echo.Context) error {
-	var request struct {
-		Nama         string  `json:"nama"`
-		Varian       string  `json:"varian"`
-		Harga        float64 `json:"harga"`
-		CategoriesID uint    `json:"categories_id"`
-	}
-
-	// Bind JSON request to struct
-	if err := c.Bind(&request); err != nil {
-		return c.JSON(http.StatusBadRequest, BaseRespose{
-			Status:  false,
-			Message: "Invalid request data",
-			Data:    nil,
-		})
-	}
-
-	// Create new Makanan entry
-	minuman := Minuman{
-		Nama:          request.Nama,
-		Varian:        request.Varian,
-		Harga:         request.Harga,
-		Categories_id: request.CategoriesID,
-	}
-
-	// Save to database
-	if err := DB.Create(&minuman).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to add Drink",
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusCreated, BaseRespose{
-		Status:  true,
-		Message: "Successfully added Drink",
-		Data:    minuman,
-	})
-}
-
-// read minuman
-func GetMinumanController(c echo.Context) error {
-	id := c.Param("id")
-
-	// Find the Makanan entry by ID
-	var minuman Minuman
-	if err := DB.Preload("minumen").First(&minuman, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.JSON(http.StatusNotFound, BaseRespose{
-				Status:  false,
-				Message: "minuman not found",
-				Data:    nil,
-			})
-		}
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to retrieve minuman",
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusOK, BaseRespose{
-		Status:  true,
-		Message: "Successfully retrieved minuman",
-		Data:    minuman,
-	})
-}
-
-// update minuman
-func UpdateMinumanController(c echo.Context) error {
-	id := c.Param("id")
-	var request struct {
-		Nama         string  `json:"nama"`
-		Varian       string  `json:"varian"`
-		Harga        float64 `json:"harga"`
-		CategoriesID uint    `json:"categories_id"`
-	}
-
-	// Bind JSON request to struct
-	if err := c.Bind(&request); err != nil {
-		return c.JSON(http.StatusBadRequest, BaseRespose{
-			Status:  false,
-			Message: "Invalid request data",
-			Data:    nil,
-		})
-	}
-
-	// Find the existing Makanan entry
-	var minuman Minuman
-	if err := DB.First(&minuman, id).Error; err != nil {
-		return c.JSON(http.StatusNotFound, BaseRespose{
-			Status:  false,
-			Message: "Makanan not found",
-			Data:    nil,
-		})
-	}
-
-	// Update fields
-	minuman.Nama = request.Nama
-	minuman.Varian = request.Varian
-	minuman.Harga = request.Harga
-	minuman.Categories_id = request.CategoriesID
-
-	// Save updates to database
-	if err := DB.Save(&minuman).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to update minuman",
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusOK, BaseRespose{
-		Status:  true,
-		Message: "Successfully updated minuman",
-		Data:    minuman,
-	})
-}
-
-// softdelete minuman
-func SoftDeleteMinumanController(c echo.Context) error {
-	// Extract category ID from request
-	id := c.Param("id")
-
-	// Find the category by ID
-	var minuman Minuman
-	if err := DB.First(&minuman, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.JSON(http.StatusNotFound, BaseRespose{
-				Status:  false,
-				Message: "drink not found",
-				Data:    nil,
-			})
-		}
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to find drink",
-			Data:    nil,
-		})
-	}
-
-	// Perform soft delete
-	if err := DB.Delete(&minuman).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to delete drink",
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusOK, BaseRespose{
-		Status:  true,
-		Message: "Successfully deleted drink",
-		Data:    nil,
-	})
-}
-
-// restore minuman
-func RestoreMinumanController(c echo.Context) error {
-	// Extract category ID from request
-	id := c.Param("id")
-
-	// Find the category by ID (including soft-deleted records)
-	var minuman Minuman
-	if err := DB.Unscoped().First(&minuman, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.JSON(http.StatusNotFound, BaseRespose{
-				Status:  false,
-				Message: "drink not found",
-				Data:    nil,
-			})
-		}
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to find drink",
-			Data:    nil,
-		})
-	}
-
-	// Check if the category is already active
-	if minuman.DeletedAt.Time.IsZero() {
-		return c.JSON(http.StatusConflict, BaseRespose{
-			Status:  false,
-			Message: "drink is not deleted",
-			Data:    nil,
-		})
-	}
-
-	// Restore the category by setting DeletedAt to nil
-	if err := DB.Model(&minuman).Update("DeletedAt", nil).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to restore category",
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusOK, BaseRespose{
-		Status:  true,
-		Message: "Successfully restored category",
-		Data:    minuman,
-	})
-}
-
-// delete minuman
-func DeleteMinumanController(c echo.Context) error {
-	id := c.Param("id")
-
-	// Find the Makanan entry by ID
-	var minuman Minuman
-	if err := DB.First(&minuman, id).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return c.JSON(http.StatusNotFound, BaseRespose{
-				Status:  false,
-				Message: "Drink not found",
-				Data:    nil,
-			})
-		}
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to find drink",
-			Data:    nil,
-		})
-	}
-
-	// Delete the Makanan entry
-	if err := DB.Delete(&minuman).Error; err != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
-			Status:  false,
-			Message: "Failed to delete minuman",
-			Data:    nil,
-		})
-	}
-
-	return c.JSON(http.StatusOK, BaseRespose{
-		Status:  true,
-		Message: "Successfully deleted minuman",
-		Data:    nil,
-	})
 }
 
 // controller promo
 // add
-func CreatePromo(c echo.Context) error {
+func AddPromoController(c echo.Context) error {
 	var promo Promo
 
+	// Bind request data to promo first
 	if err := c.Bind(&promo); err != nil {
-		return c.JSON(http.StatusBadRequest, BaseRespose{
+		return c.JSON(http.StatusBadRequest, BaseResponse{
 			Status:  false,
 			Message: "Invalid request data",
 			Data:    nil,
 		})
 	}
 
+	// Validate promo data
 	if promo.Nama == "" || promo.Harga <= 0 {
-		return c.JSON(http.StatusBadRequest, BaseRespose{
+		return c.JSON(http.StatusBadRequest, BaseResponse{
 			Status:  false,
 			Message: "Invalid promo data",
 			Data:    nil,
 		})
 	}
 
+	// Check if promo with the same name already exists
+	var existingPromo Promo
+	if err := DB.Where("nama = ?", promo.Nama).First(&existingPromo).Error; err == nil {
+		// If no error and a record is found
+		formattedMessage := fmt.Sprintf("Promo with nama %s already exists", promo.Nama)
+		return c.JSON(http.StatusConflict, BaseResponse{
+			Status:  false,
+			Message: formattedMessage,
+			Data:    nil,
+		})
+	}
+
+	// Create new promo
 	result := DB.Create(&promo)
 	if result.Error != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
 			Status:  false,
 			Message: "Failed to create promo",
 			Data:    nil,
 		})
 	}
 
-	return c.JSON(http.StatusCreated, BaseRespose{
+	return c.JSON(http.StatusCreated, BaseResponse{
 		Status:  true,
 		Message: "Promo created successfully",
 		Data:    promo,
@@ -908,26 +206,26 @@ func CreatePromo(c echo.Context) error {
 }
 
 // read
-func GetPromoByID(c echo.Context) error {
+func GetPromoByIDController(c echo.Context) error {
 	id := c.Param("id")
 	var promo Promo
 
 	if err := DB.First(&promo, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return c.JSON(http.StatusNotFound, BaseRespose{
+			return c.JSON(http.StatusNotFound, BaseResponse{
 				Status:  false,
 				Message: "Promo not found",
 				Data:    nil,
 			})
 		}
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
 			Status:  false,
 			Message: "Error retrieving promo",
 			Data:    nil,
 		})
 	}
 
-	return c.JSON(http.StatusOK, BaseRespose{
+	return c.JSON(http.StatusOK, BaseResponse{
 		Status:  true,
 		Message: "Promo retrieved successfully",
 		Data:    promo,
@@ -935,28 +233,28 @@ func GetPromoByID(c echo.Context) error {
 }
 
 // update
-func UpdatePromo(c echo.Context) error {
+func UpdatePromoController(c echo.Context) error {
 	id := c.Param("id")
 	var updatedPromo Promo
 
 	if err := c.Bind(&updatedPromo); err != nil {
-		return c.JSON(http.StatusBadRequest, BaseRespose{
+		return c.JSON(http.StatusBadRequest, BaseResponse{
 			Status:  false,
 			Message: "Invalid request data",
 			Data:    nil,
 		})
 	}
 
-	var existingPromo Promo
+	var existingPromo Printer
 	if err := DB.First(&existingPromo, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return c.JSON(http.StatusNotFound, BaseRespose{
+			return c.JSON(http.StatusNotFound, BaseResponse{
 				Status:  false,
 				Message: "Promo not found",
 				Data:    nil,
 			})
 		}
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
 			Status:  false,
 			Message: "Error retrieving promo",
 			Data:    nil,
@@ -965,18 +263,17 @@ func UpdatePromo(c echo.Context) error {
 
 	// Update fields
 	existingPromo.Nama = updatedPromo.Nama
-	existingPromo.Harga = updatedPromo.Harga
 
 	result := DB.Save(&existingPromo)
 	if result.Error != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
 			Status:  false,
 			Message: "Failed to update promo",
 			Data:    nil,
 		})
 	}
 
-	return c.JSON(http.StatusOK, BaseRespose{
+	return c.JSON(http.StatusOK, BaseResponse{
 		Status:  true,
 		Message: "Promo updated successfully",
 		Data:    existingPromo,
@@ -984,14 +281,97 @@ func UpdatePromo(c echo.Context) error {
 }
 
 // softdelele
-// restore
-// delete
-func DeletePromo(c echo.Context) error {
+func SoftDeletePromoController(c echo.Context) error {
+	// Extract category ID from request
 	id := c.Param("id")
-	result := DB.Delete(&Promo{}, id)
+
+	// Find the category by ID
+	var promo Printer
+	if err := DB.First(&promo, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, BaseResponse{
+				Status:  false,
+				Message: "Promo not found",
+				Data:    nil,
+			})
+		}
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to find Promo",
+			Data:    nil,
+		})
+	}
+
+	// Perform soft delete
+	if err := DB.Delete(&promo).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to delete category",
+			Data:    nil,
+		})
+	}
+
+	return c.JSON(http.StatusOK, BaseResponse{
+		Status:  true,
+		Message: "Successfully deleted category",
+		Data:    nil,
+	})
+}
+
+// restore
+func RestorePromoController(c echo.Context) error {
+	// Extract category ID from request
+	id := c.Param("id")
+
+	// Find the category by ID (including soft-deleted records)
+	var promo Printer
+	if err := DB.Unscoped().First(&promo, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, BaseResponse{
+				Status:  false,
+				Message: "Promo not found",
+				Data:    nil,
+			})
+		}
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to find promo",
+			Data:    nil,
+		})
+	}
+
+	// Check if the category is already active
+	if promo.DeletedAt.Time.IsZero() {
+		return c.JSON(http.StatusConflict, BaseResponse{
+			Status:  false,
+			Message: "promo is not deleted",
+			Data:    nil,
+		})
+	}
+
+	// Restore the category by setting DeletedAt to nil
+	if err := DB.Model(&promo).Update("DeletedAt", nil).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to restore Promo",
+			Data:    nil,
+		})
+	}
+
+	return c.JSON(http.StatusOK, BaseResponse{
+		Status:  true,
+		Message: "Successfully restored category",
+		Data:    promo,
+	})
+}
+
+// delete
+func DeletePromoController(c echo.Context) error {
+	id := c.Param("id")
+	result := DB.Delete(&Printer{}, id)
 
 	if result.Error != nil {
-		return c.JSON(http.StatusInternalServerError, BaseRespose{
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
 			Status:  false,
 			Message: "Failed to delete promo",
 			Data:    nil,
@@ -999,18 +379,704 @@ func DeletePromo(c echo.Context) error {
 	}
 
 	if result.RowsAffected == 0 {
-		return c.JSON(http.StatusNotFound, BaseRespose{
+		return c.JSON(http.StatusNotFound, BaseResponse{
 			Status:  false,
 			Message: "Promo not found",
 			Data:    nil,
 		})
 	}
 
-	return c.JSON(http.StatusOK, BaseRespose{
+	return c.JSON(http.StatusOK, BaseResponse{
 		Status:  true,
 		Message: "Promo deleted successfully",
 		Data:    nil,
 	})
+}
+
+// CreatePrinter creates a new printer record
+func CreatePrinterController(c echo.Context) error {
+	var printer Printer
+
+	// Bind request data to printer
+	if err := c.Bind(&printer); err != nil {
+		return c.JSON(http.StatusBadRequest, BaseResponse{
+			Status:  false,
+			Message: "Invalid request data",
+			Data:    nil,
+		})
+	}
+
+	// Check if printer with the same name already exists
+	var existingPrinter Printer
+	if err := DB.Where("nama = ?", printer.Nama).First(&existingPrinter).Error; err == nil {
+		return c.JSON(http.StatusConflict, BaseResponse{
+			Status:  false,
+			Message: "Printer with the same name already exists",
+			Data:    nil,
+		})
+	}
+
+	// Create new printer
+	if result := DB.Create(&printer); result.Error != nil {
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to create printer",
+			Data:    nil,
+		})
+	}
+
+	return c.JSON(http.StatusCreated, BaseResponse{
+		Status:  true,
+		Message: "Printer created successfully",
+		Data:    printer,
+	})
+}
+
+// GetPrinters retrieves a list of printers
+func GetPrintersController(c echo.Context) error {
+	var printers []Printer
+
+	if result := DB.Order("nama desc").Find(&printers); result.Error != nil {
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to retrieve printers",
+			Data:    nil,
+		})
+	}
+
+	return c.JSON(http.StatusOK, BaseResponse{
+		Status:  true,
+		Message: "Printers retrieved successfully",
+		Data:    printers,
+	})
+}
+
+// UpdatePrinter updates an existing printer record
+func UpdatePrinterController(c echo.Context) error {
+	var printer Printer
+
+	// Bind request data to printer
+	if err := c.Bind(&printer); err != nil {
+		return c.JSON(http.StatusBadRequest, BaseResponse{
+			Status:  false,
+			Message: "Invalid request data",
+			Data:    nil,
+		})
+	}
+
+	var existingPrinter Printer
+	if err := DB.First(&existingPrinter, printer.ID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, BaseResponse{
+				Status:  false,
+				Message: "Printer not found",
+				Data:    nil,
+			})
+		}
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to find printer",
+			Data:    nil,
+		})
+	}
+
+	if result := DB.Model(&existingPrinter).Updates(printer).Error; result != nil {
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to update printer",
+			Data:    nil,
+		})
+	}
+
+	return c.JSON(http.StatusOK, BaseResponse{
+		Status:  true,
+		Message: "Printer updated successfully",
+		Data:    existingPrinter,
+	})
+}
+
+// SoftDeletePrinter performs a soft delete on a printer record
+func SoftDeletePrinterController(c echo.Context) error {
+	id := c.Param("id")
+
+	var printer Printer
+	if err := DB.First(&printer, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, BaseResponse{
+				Status:  false,
+				Message: "Printer not found",
+				Data:    nil,
+			})
+		}
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to find printer",
+			Data:    nil,
+		})
+	}
+
+	if err := DB.Delete(&printer).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to delete printer",
+			Data:    nil,
+		})
+	}
+
+	return c.JSON(http.StatusOK, BaseResponse{
+		Status:  true,
+		Message: "Printer deleted successfully",
+		Data:    nil,
+	})
+}
+
+// RestorePrinter restores a soft-deleted printer record
+func RestorePrinterController(c echo.Context) error {
+	id := c.Param("id")
+
+	var printer Printer
+	if err := DB.Unscoped().First(&printer, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, BaseResponse{
+				Status:  false,
+				Message: "Printer not found",
+				Data:    nil,
+			})
+		}
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to find printer",
+			Data:    nil,
+		})
+	}
+
+	if printer.DeletedAt.Time.IsZero() {
+		return c.JSON(http.StatusConflict, BaseResponse{
+			Status:  false,
+			Message: "Printer is not deleted",
+			Data:    nil,
+		})
+	}
+
+	if err := DB.Model(&printer).Update("DeletedAt", nil).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to restore printer",
+			Data:    nil,
+		})
+	}
+
+	return c.JSON(http.StatusOK, BaseResponse{
+		Status:  true,
+		Message: "Printer restored successfully",
+		Data:    printer,
+	})
+}
+
+// DeletePrinter permanently deletes a printer record
+func DeletePrinterController(c echo.Context) error {
+	id := c.Param("id")
+
+	var printer Printer
+	if err := DB.First(&printer, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, BaseResponse{
+				Status:  false,
+				Message: "Printer not found",
+				Data:    nil,
+			})
+		}
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to find printer",
+			Data:    nil,
+		})
+	}
+
+	if err := DB.Unscoped().Delete(&printer).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to permanently delete printer",
+			Data:    nil,
+		})
+	}
+
+	return c.JSON(http.StatusOK, BaseResponse{
+		Status:  true,
+		Message: "Printer permanently deleted successfully",
+		Data:    nil,
+	})
+}
+
+// controller meja
+// AddMejaController handles creating a new Meja entry
+func AddMejaController(c echo.Context) error {
+	var meja Meja
+
+	// Bind request data to meja
+	if err := c.Bind(&meja); err != nil {
+		return c.JSON(http.StatusBadRequest, BaseResponse{
+			Status:  false,
+			Message: "Invalid request data",
+			Data:    nil,
+		})
+	}
+
+	// Validate meja data
+	if meja.Nama == "" {
+		return c.JSON(http.StatusBadRequest, BaseResponse{
+			Status:  false,
+			Message: "Invalid meja data: Nama is required",
+			Data:    nil,
+		})
+	}
+
+	// Check if promo with the same name already exists
+	var existingMeja Meja
+	if err := DB.Where("nama = ?", meja.Nama).First(&existingMeja).Error; err == nil {
+		// If no error and a record is found
+		formattedMessage := fmt.Sprintf("Table with nama %s already exists", meja.Nama)
+		return c.JSON(http.StatusConflict, BaseResponse{
+			Status:  false,
+			Message: formattedMessage,
+			Data:    nil,
+		})
+	}
+
+	// Create new meja
+	result := DB.Create(&meja)
+	if result.Error != nil {
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to create meja",
+			Data:    nil,
+		})
+	}
+
+	return c.JSON(http.StatusCreated, BaseResponse{
+		Status:  true,
+		Message: "Meja created successfully",
+		Data:    meja,
+	})
+}
+
+// GetMejaController retrieves a Meja by ID
+func GetMejaController(c echo.Context) error {
+	id := c.Param("id")
+	var meja Meja
+
+	if err := DB.First(&meja, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.JSON(http.StatusNotFound, BaseResponse{
+				Status:  false,
+				Message: "Meja not found",
+				Data:    nil,
+			})
+		}
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to retrieve meja",
+			Data:    nil,
+		})
+	}
+
+	return c.JSON(http.StatusOK, BaseResponse{
+		Status:  true,
+		Message: "Meja retrieved successfully",
+		Data:    meja,
+	})
+}
+
+// UpdateMejaController updates an existing Meja entry
+func UpdateMejaController(c echo.Context) error {
+	id := c.Param("id")
+	var updatedMeja Meja
+
+	// Bind request data to updatedMeja
+	if err := c.Bind(&updatedMeja); err != nil {
+		return c.JSON(http.StatusBadRequest, BaseResponse{
+			Status:  false,
+			Message: "Invalid request data",
+			Data:    nil,
+		})
+	}
+
+	// Validate updatedMeja data
+	if updatedMeja.Nama == "" {
+		return c.JSON(http.StatusBadRequest, BaseResponse{
+			Status:  false,
+			Message: "Invalid meja data: Nama is required",
+			Data:    nil,
+		})
+	}
+
+	var existingMeja Meja
+	if err := DB.First(&existingMeja, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return c.JSON(http.StatusNotFound, BaseResponse{
+				Status:  false,
+				Message: "Meja not found",
+				Data:    nil,
+			})
+		}
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to retrieve meja",
+			Data:    nil,
+		})
+	}
+
+	// Update meja details
+	existingMeja.Nama = updatedMeja.Nama
+	result := DB.Save(&existingMeja)
+	if result.Error != nil {
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to update meja",
+			Data:    nil,
+		})
+	}
+
+	return c.JSON(http.StatusOK, BaseResponse{
+		Status:  true,
+		Message: "Meja updated successfully",
+		Data:    existingMeja,
+	})
+}
+
+// softdelete meja
+func SoftDeleteMejaController(c echo.Context) error {
+	// Extract category ID from request
+	id := c.Param("id")
+
+	// Find the category by ID
+	var meja Meja
+	if err := DB.First(&meja, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, BaseResponse{
+				Status:  false,
+				Message: "meja not found",
+				Data:    nil,
+			})
+		}
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to find category",
+			Data:    nil,
+		})
+	}
+
+	// Perform soft delete
+	if err := DB.Delete(&meja).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to delete meja",
+			Data:    nil,
+		})
+	}
+
+	return c.JSON(http.StatusOK, BaseResponse{
+		Status:  true,
+		Message: "Successfully deleted meja",
+		Data:    nil,
+	})
+}
+
+// restore meja
+func RestoreMejaController(c echo.Context) error {
+	// Extract category ID from request
+	id := c.Param("id")
+
+	// Find the category by ID (including soft-deleted records)
+	var meja Meja
+	if err := DB.Unscoped().First(&meja, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return c.JSON(http.StatusNotFound, BaseResponse{
+				Status:  false,
+				Message: "meja not found",
+				Data:    nil,
+			})
+		}
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to find meja",
+			Data:    nil,
+		})
+	}
+
+	// Check if the category is already active
+	if meja.DeletedAt.Time.IsZero() {
+		return c.JSON(http.StatusConflict, BaseResponse{
+			Status:  false,
+			Message: "meja is not deleted",
+			Data:    nil,
+		})
+	}
+
+	// Restore the category by setting DeletedAt to nil
+	if err := DB.Model(&meja).Update("DeletedAt", nil).Error; err != nil {
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to restore meja",
+			Data:    nil,
+		})
+	}
+
+	return c.JSON(http.StatusOK, BaseResponse{
+		Status:  true,
+		Message: "Successfully restored meja",
+		Data:    meja,
+	})
+}
+
+// DeleteMejaController handles deleting a Meja by ID
+func DeleteMejaController(c echo.Context) error {
+	id := c.Param("id")
+
+	// Soft delete the meja by ID
+	result := DB.Delete(&Meja{}, id)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return c.JSON(http.StatusNotFound, BaseResponse{
+				Status:  false,
+				Message: "Meja not found",
+				Data:    nil,
+			})
+		}
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to delete meja",
+			Data:    nil,
+		})
+	}
+
+	return c.JSON(http.StatusOK, BaseResponse{
+		Status:  true,
+		Message: "Meja deleted successfully",
+		Data:    nil,
+	})
+}
+
+// add product menu
+func CreateProductController(c echo.Context) error {
+	var product Product
+
+	// Bind request data to product
+	if err := c.Bind(&product); err != nil {
+		return c.JSON(http.StatusBadRequest, BaseResponse{
+			Status:  false,
+			Message: "Invalid request data",
+			Data:    nil,
+		})
+	}
+
+	// Check if product with the same name already exists
+	//var existingProduct Product
+	//if err := DB.Where("name = ?", product.Name).First(&existingProduct).Error; err == nil {
+	//	formattedMessage := fmt.Sprintf("Product with name %s already exists", product.Name)
+	//	return c.JSON(http.StatusConflict, BaseRespose{
+	//		Status:  false,
+	//		Message: formattedMessage,
+	//		Data:    nil,
+	//	})
+	//}
+
+	// Create new product
+	result := DB.Create(&product)
+	if result.Error != nil {
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to add product",
+			Data:    nil,
+		})
+	}
+
+	return c.JSON(http.StatusCreated, BaseResponse{
+		Status:  true,
+		Message: "Successfully added product",
+		Data:    product,
+	})
+}
+func GetProductsController(c echo.Context) error {
+	var products []Product
+
+	result := DB.Find(&products)
+
+	if result.Error != nil {
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Failed to retrieve products: " + result.Error.Error(),
+			Data:    nil,
+		})
+	}
+
+	return c.JSON(http.StatusOK, BaseResponse{
+		Status:  true,
+		Message: "Successfully retrieved products",
+		Data:    products,
+	})
+}
+
+// CreateOrder handles the creation of a new order
+func CreateOrder(c echo.Context) error {
+	var request CreateOrderRequest
+	if err := c.Bind(&request); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request payload")
+	}
+
+	// Start a database transaction
+	tx := DB.Begin()
+	if tx.Error != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to start transaction")
+	}
+	defer func() {
+		if r := recover(); r != nil || tx.Error != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// Create the order
+	order := Order{
+		TableNumber: request.TableNumber,
+		Status:      0,
+	}
+	if err := tx.Create(&order).Error; err != nil {
+		tx.Rollback()
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create order")
+	}
+
+	// Map categories to printer names
+	printerMap := map[string]string{
+		"minuman": "Printer Bar",
+		"makanan": "Printer Dapur",
+	}
+
+	// Store printer IDs for each category
+	printerIDs := make(map[string][]uint)
+
+	for _, itemRequest := range request.Items {
+		var product Product
+		if err := tx.Where("id = ?", itemRequest.ProductID).First(&product).Error; err != nil {
+			tx.Rollback()
+			return echo.NewHTTPError(http.StatusNotFound, "Product not found")
+		}
+
+		orderItem := OrderItem{
+			OrderID:   order.ID,
+			ProductID: product.ID,
+			Quantity:  itemRequest.Quantity,
+		}
+		if err := tx.Create(&orderItem).Error; err != nil {
+			tx.Rollback()
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to create order item")
+		}
+
+		printerName, exists := printerMap[product.Category]
+		if exists && printerName != "" {
+			if _, found := printerIDs[printerName]; !found {
+				var printers []Printer
+				if err := tx.Where("nama = ?", printerName).Find(&printers).Error; err != nil {
+					tx.Rollback()
+					return echo.NewHTTPError(http.StatusInternalServerError, "Failed to find printers")
+				}
+				for _, printer := range printers {
+					printerID, err := strconv.ParseUint(printer.ID, 10, 64)
+					if err == nil {
+						printerIDs[printerName] = append(printerIDs[printerName], uint(printerID))
+					}
+				}
+			}
+
+			for _, printerID := range printerIDs[printerName] {
+				orderPrinter := OrderPrinter{
+					OrderID:   order.ID,
+					PrinterID: printerID,
+				}
+				if err := tx.Create(&orderPrinter).Error; err != nil {
+					tx.Rollback()
+					return echo.NewHTTPError(http.StatusInternalServerError, "Failed to assign printer")
+				}
+			}
+		}
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to commit transaction")
+	}
+
+	return c.JSON(http.StatusCreated, order)
+}
+
+// GetBill retrieves and calculates the total bill for a given table
+func GetBill(c echo.Context) error {
+	tableNumber := c.Param("table_number")
+
+	var orders []Order
+	if err := DB.Preload("Items.Product").Where("table_number = ?", tableNumber).Find(&orders).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve orders")
+	}
+
+	totalAmount := calculateTotalAmount(orders)
+
+	response := struct {
+		Orders      []Order `json:"orders"`
+		TotalAmount float64 `json:"total_amount"`
+	}{
+		Orders:      orders,
+		TotalAmount: totalAmount,
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
+// calculateTotalAmount calculates the total amount of the given orders
+func calculateTotalAmount(orders []Order) float64 {
+	totalAmount := 0.0
+	for _, order := range orders {
+		for _, item := range order.Items {
+			totalAmount += float64(item.Quantity) * item.Product.Price
+		}
+	}
+	return totalAmount
+}
+
+// CalculateTotal calculates the total amount for a specific order ID including discounts
+func CalculateTotal(orderID uint, db *gorm.DB) (float64, error) {
+	var order Order
+	if err := db.Preload("Items.Product").First(&order, orderID).Error; err != nil {
+		return 0, err
+	}
+
+	total := calculateTotalAmount([]Order{order})
+
+	var promos []Promo
+	if err := db.Find(&promos).Error; err != nil {
+		return 0, err
+	}
+
+	for _, promo := range promos {
+		if containsAllProducts(order.Items, promo.ProductIDs) {
+			total -= promo.Harga
+		}
+	}
+
+	return total, nil
+}
+
+// containsAllProducts checks if all specified product IDs are present in the order items
+func containsAllProducts(items []OrderItem, productIDs []uint) bool {
+	productMap := make(map[uint]bool)
+	for _, item := range items {
+		productMap[item.ProductID] = true
+	}
+
+	for _, id := range productIDs {
+		if !productMap[id] {
+			return false
+		}
+	}
+
+	return true
 }
 
 //func loadEnv() {
