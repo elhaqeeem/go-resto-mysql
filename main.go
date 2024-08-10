@@ -180,9 +180,9 @@ func Migration() {
 		&OrderItem{},
 		&OrderItemRequest{},
 		&OrderPrinter{},
-		//&CreateOrderRequest{},
-		//&CreateOrderResponse{},
-		//&OrderData{},
+		&CreateOrderRequest{},
+		&CreateOrderResponse{},
+		&OrderData{},
 	)
 
 }
