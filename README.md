@@ -35,7 +35,10 @@ To install and set up the project, follow these steps:
 
 4. Deploy to aws or etc --> upload or bulk environment in setting deployment
 
-5. Command to running --> go run main.go
+5. Command to running 
+   ```sh
+   go mod tidy
+   go run main.go
 
 
 
