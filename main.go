@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -102,7 +103,7 @@ type BaseResponse struct {
 }
 
 func main() {
-	//loadEnv()
+	loadEnv()
 	InitDatabase()
 
 	e := echo.New()
@@ -1133,9 +1134,9 @@ func containsAllProducts(items []OrderItem, productIDs []uint) bool {
 	return true
 }
 
-//func loadEnv() {
-//	err := godotenv.Load()
-//	if err != nil {
-//		panic("Failed load env file")
-//	}
-//}
+func loadEnv() {
+	err := godotenv.Load()
+	if err != nil {
+		panic("Failed load env file")
+	}
+}
