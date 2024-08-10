@@ -21,11 +21,14 @@ To install and set up the project, follow these steps:
     cp .env .env.backup
 
 3. Running local --> delete comment in 
+   ```sh
 
    //loadEnv() 
    
    And 
 
+   ```sh
+   
    /func loadEnv() {
 	/err := godotenv.Load()
 	//if err != nil {
