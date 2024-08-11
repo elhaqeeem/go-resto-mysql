@@ -153,19 +153,24 @@ func main() {
 	e.Start(":8000")
 }
 
+// Remove or comment out this line if `caCertPath` is not used
+// var caCertPath = "/etc/ssl/certs/ca.pem"
+
 var DB *gorm.DB
+var caCertPath = "/etc/ssl/certs/ca.pem"
 
 func InitDatabase() {
-	dsn := fmt.Sprintf("%v:%v@tcp(%v:%v)/%v?charset=utf8mb4&parseTime=True&loc=Local",
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 		os.Getenv("DB_USER"),
 		os.Getenv("DB_PASSWORD"),
 		os.Getenv("DB_HOST"),
 		os.Getenv("DB_PORT"),
 		os.Getenv("DB_NAME"))
+
 	var err error
 	DB, err = gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
-		panic("gagal init database")
+		panic("Failed to initialize database: " + err.Error())
 	}
 	Migration()
 }
