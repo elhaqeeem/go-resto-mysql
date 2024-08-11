@@ -1,3 +1,6 @@
 .env
 dummy
 Link Jawaban.rtf
+/certs
+/certs/ca.pem
+docker-compose.yml
