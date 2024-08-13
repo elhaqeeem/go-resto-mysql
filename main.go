@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
+	"github.com/go-redis/redis/v8"
 	"github.com/labstack/echo/v4"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -111,12 +115,12 @@ type BaseResponse struct {
 func main() {
 	//loadEnv()
 	InitDatabase()
-
+	InitRedis()
 	e := echo.New()
 
 	//route api Promo
 	e.POST("/api/v1/discount", AddPromoController)
-	e.GET("/api/v1/discount", GetPromoByIDController)
+	e.GET("/api/v1/discount", CachePromo)
 	e.PUT("/api/v1/discount", UpdatePromoController)
 	e.DELETE("/api/v1/discount/:id", DeletePromoController)
 	//route api Meja
@@ -155,9 +159,11 @@ func main() {
 
 // Remove or comment out this line if `caCertPath` is not used
 // var caCertPath = "/etc/ssl/certs/ca.pem"
-
+var redisClient *redis.Client
+var ctx = context.Background()
 var DB *gorm.DB
-var caCertPath = "/etc/ssl/certs/ca.pem"
+
+//var caCertPath = "/etc/ssl/certs/ca.pem"
 
 func InitDatabase() {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
@@ -175,19 +181,33 @@ func InitDatabase() {
 	Migration()
 }
 
+func InitRedis() {
+	redisClient = redis.NewClient(&redis.Options{
+		Addr:     "redis:6379", // Redis service name and port
+		Password: "",           // No password set
+		DB:       0,            // Default DB
+	})
+
+	_, err := redisClient.Ping(ctx).Result()
+	if err != nil {
+		log.Fatalf("Failed to connect to Redis: %v", err)
+	}
+	fmt.Println("Connected to Redis")
+}
+
 func Migration() {
 	DB.AutoMigrate(
-		&Promo{},
-		&Printer{},
-		&Meja{},
-		&Product{},
-		&Order{},
-		&OrderItem{},
-		&OrderItemRequest{},
-		&OrderPrinter{},
-		&CreateOrderRequest{},
-		&CreateOrderResponse{},
-		&OrderData{},
+	//&Promo{},
+	//&Printer{},
+	//&Meja{},
+	//&Product{},
+	//&Order{},
+	//&OrderItem{},
+	//&OrderItemRequest{},
+	//&OrderPrinter{},
+	//&CreateOrderRequest{},
+	//&CreateOrderResponse{},
+	//&OrderData{},
 	)
 
 }
@@ -241,6 +261,41 @@ func AddPromoController(c echo.Context) error {
 		Status:  true,
 		Message: "Promo created successfully",
 		Data:    promo,
+	})
+}
+
+func CachePromo(c echo.Context) error {
+	promoID := c.Param("id")
+	cachedPromo, err := redisClient.Get(ctx, promoID).Result()
+	if err == redis.Nil {
+		// Cache miss; retrieve from DB
+		var promo Promo
+		if err := DB.First(&promo, promoID).Error; err != nil {
+			return c.JSON(http.StatusNotFound, BaseResponse{
+				Status:  false,
+				Message: "Promo not found",
+				Data:    nil,
+			})
+		}
+		// Cache the result
+		redisClient.Set(ctx, promoID, promo, 0)
+		return c.JSON(http.StatusOK, BaseResponse{
+			Status:  true,
+			Message: "Promo retrieved from database and cached",
+			Data:    promo,
+		})
+	} else if err != nil {
+		return c.JSON(http.StatusInternalServerError, BaseResponse{
+			Status:  false,
+			Message: "Error accessing Redis",
+			Data:    nil,
+		})
+	}
+	// Cache hit
+	return c.JSON(http.StatusOK, BaseResponse{
+		Status:  true,
+		Message: "Promo retrieved from cache",
+		Data:    cachedPromo,
 	})
 }
 
@@ -1376,20 +1431,44 @@ func GetMejaController(c echo.Context) error {
 // GetBill retrieves and calculates the total bill for a given table
 func GetBill(c echo.Context) error {
 	tableNumber := c.Param("table_number")
+	cacheKey := fmt.Sprintf("bill:%s", tableNumber)
 
-	var orders []Order
-	if err := DB.Preload("Items.Product").Where("table_number = ?", tableNumber).Find(&orders).Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve orders")
+	// Check if the bill data is in the cache
+	cachedData, err := redisClient.Get(ctx, cacheKey).Result()
+	if err == redis.Nil {
+		// Cache miss; retrieve from database
+		var orders []Order
+		if err := DB.Preload("Items.Product").Where("table_number = ?", tableNumber).Find(&orders).Error; err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve orders")
+		}
+
+		totalAmount := calculateTotalAmount(orders)
+
+		response := struct {
+			Orders      []Order `json:"orders"`
+			TotalAmount float64 `json:"total_amount"`
+		}{
+			Orders:      orders,
+			TotalAmount: totalAmount,
+		}
+
+		// Cache the result
+		cacheValue, _ := json.Marshal(response)
+		redisClient.Set(ctx, cacheKey, cacheValue, 10*time.Minute) // Cache for 10 minutes
+
+		return c.JSON(http.StatusOK, response)
+	} else if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to access Redis")
 	}
 
-	totalAmount := calculateTotalAmount(orders)
-
-	response := struct {
+	// Cache hit; return cached data
+	var response struct {
 		Orders      []Order `json:"orders"`
 		TotalAmount float64 `json:"total_amount"`
-	}{
-		Orders:      orders,
-		TotalAmount: totalAmount,
+	}
+	err = json.Unmarshal([]byte(cachedData), &response)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to parse cached data")
 	}
 
 	return c.JSON(http.StatusOK, response)
