@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/joho/godotenv"
 	"github.com/labstack/echo/v4"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -109,7 +110,7 @@ type BaseResponse struct {
 }
 
 func main() {
-	//loadEnv()
+	loadEnv()
 	InitDatabase()
 
 	e := echo.New()
@@ -153,11 +154,7 @@ func main() {
 	e.Start(":8000")
 }
 
-// Remove or comment out this line if `caCertPath` is not used
-// var caCertPath = "/etc/ssl/certs/ca.pem"
-
 var DB *gorm.DB
-var caCertPath = "/etc/ssl/certs/ca.pem"
 
 func InitDatabase() {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
@@ -177,17 +174,17 @@ func InitDatabase() {
 
 func Migration() {
 	DB.AutoMigrate(
-		&Promo{},
-		&Printer{},
-		&Meja{},
-		&Product{},
-		&Order{},
-		&OrderItem{},
-		&OrderItemRequest{},
-		&OrderPrinter{},
-		&CreateOrderRequest{},
-		&CreateOrderResponse{},
-		&OrderData{},
+	//&Promo{},
+	//&Printer{},
+	//&Meja{},
+	//&Product{},
+	//&Order{},
+	//&OrderItem{},
+	//&OrderItemRequest{},
+	//&OrderPrinter{},
+	//&CreateOrderRequest{},
+	//&CreateOrderResponse{},
+	//&OrderData{},
 	)
 
 }
@@ -1445,9 +1442,9 @@ func containsAllProducts(items []OrderItem, productIDs []uint) bool {
 	return true
 }
 
-//func loadEnv() {
-//	err := godotenv.Load()
-//	if err != nil {
-//		panic("Failed load env file")
-//	}
-//}
+func loadEnv() {
+	err := godotenv.Load()
+	if err != nil {
+		panic("Failed load env file")
+	}
+}
