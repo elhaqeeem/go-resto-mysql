@@ -29,8 +29,8 @@ To install and set up the project, follow these steps:
 
    ```sh
    
-   /func loadEnv() {
-	/err := godotenv.Load()
+   //func loadEnv() {
+	//err := godotenv.Load()
 	//if err != nil {
 	//	panic("Failed load env file")
 	//}
