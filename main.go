@@ -2,13 +2,11 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/labstack/echo/v4"
@@ -115,7 +113,7 @@ type BaseResponse struct {
 func main() {
 	//loadEnv()
 	InitDatabase()
-	InitRedis()
+	//InitRedis()
 	e := echo.New()
 
 	//route api Promo
@@ -178,9 +176,9 @@ func InitDatabase() {
 }
 func InitRedis() {
 	redisClient = redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379", // Redis service name and port
-		Password: "",               // No password set
-		DB:       0,                // Default DB
+		Addr:     "redis:6379", // Redis service name and port
+		Password: "",           // No password set
+		DB:       0,            // Default DB
 	})
 
 	_, err := redisClient.Ping(ctx).Result()
@@ -1390,44 +1388,20 @@ func GetMejaController(c echo.Context) error {
 // GetBill retrieves and calculates the total bill for a given table
 func GetBill(c echo.Context) error {
 	tableNumber := c.Param("table_number")
-	cacheKey := fmt.Sprintf("bill:%s", tableNumber)
 
-	// Check if the bill data is in the cache
-	cachedData, err := redisClient.Get(ctx, cacheKey).Result()
-	if err == redis.Nil {
-		// Cache miss; retrieve from database
-		var orders []Order
-		if err := DB.Preload("Items.Product").Where("table_number = ?", tableNumber).Find(&orders).Error; err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve orders")
-		}
-
-		totalAmount := calculateTotalAmount(orders)
-
-		response := struct {
-			Orders      []Order `json:"orders"`
-			TotalAmount float64 `json:"total_amount"`
-		}{
-			Orders:      orders,
-			TotalAmount: totalAmount,
-		}
-
-		// Cache the result
-		cacheValue, _ := json.Marshal(response)
-		redisClient.Set(ctx, cacheKey, cacheValue, 10*time.Minute) // Cache for 10 minutes
-
-		return c.JSON(http.StatusOK, response)
-	} else if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to access Redis")
+	var orders []Order
+	if err := DB.Preload("Items.Product").Where("table_number = ?", tableNumber).Find(&orders).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve orders")
 	}
 
-	// Cache hit; return cached data
-	var response struct {
+	totalAmount := calculateTotalAmount(orders)
+
+	response := struct {
 		Orders      []Order `json:"orders"`
 		TotalAmount float64 `json:"total_amount"`
-	}
-	err = json.Unmarshal([]byte(cachedData), &response)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to parse cached data")
+	}{
+		Orders:      orders,
+		TotalAmount: totalAmount,
 	}
 
 	return c.JSON(http.StatusOK, response)
