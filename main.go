@@ -1409,7 +1409,9 @@ func GetBill(c echo.Context) error {
 
 	// Retrieve the orders
 	var orders []Order
-	if err := DB.Preload("Items.Product").Where("table_number = ?", tableNumber).Find(&orders).Error; err != nil {
+	if err := DB.Preload("Items.Product").
+		Where("table_number = ? AND deleted_at IS NULL", tableNumber).
+		Find(&orders).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve orders")
 	}
 
