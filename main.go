@@ -1392,12 +1392,12 @@ func GetBill(c echo.Context) error {
 	// Define a variable to store the EXPLAIN result
 	var explainResult []map[string]interface{}
 
-	// Construct the EXPLAIN query
-	explainQuery := `EXPLAIN SELECT orders.*, order_items.*, products.* 
+	// Construct the EXPLAIN query with the correct table and column names
+	explainQuery := `EXPLAIN SELECT orders.id, orders.table_number, order_items.product_id, products.name 
                      FROM orders 
-                     JOIN order_items ON order_id = orders.id 
+                     JOIN order_items ON order_items.order_id = orders.id 
                      JOIN products ON products.id = order_items.product_id 
-                     WHERE orders.table_number = ?`
+                     WHERE orders.table_number = ? AND orders.deleted_at IS NULL`
 
 	// Execute the EXPLAIN query
 	if err := DB.Raw(explainQuery, tableNumber).Scan(&explainResult).Error; err != nil {
