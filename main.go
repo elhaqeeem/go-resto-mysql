@@ -1393,7 +1393,7 @@ func GetBill(c echo.Context) error {
 	var explainResult []map[string]interface{}
 
 	// Construct the EXPLAIN query
-	explainQuery := `EXPLAIN SELECT orders.*, items.*, products.* 
+	explainQuery := `EXPLAIN SELECT orders.*, order_items.*, products.* 
                      FROM orders 
                      JOIN items ON items.order_id = orders.id 
                      JOIN products ON products.id = items.product_id 
