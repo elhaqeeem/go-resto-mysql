@@ -1389,13 +1389,34 @@ func GetMejaController(c echo.Context) error {
 func GetBill(c echo.Context) error {
 	tableNumber := c.Param("table_number")
 
+	// Define a variable to store the EXPLAIN result
+	var explainResult []map[string]interface{}
+
+	// Construct the EXPLAIN query
+	explainQuery := `EXPLAIN SELECT orders.*, items.*, products.* 
+                     FROM orders 
+                     JOIN items ON items.order_id = orders.id 
+                     JOIN products ON products.id = items.product_id 
+                     WHERE orders.table_number = ?`
+
+	// Execute the EXPLAIN query
+	if err := DB.Raw(explainQuery, tableNumber).Scan(&explainResult).Error; err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve EXPLAIN result")
+	}
+
+	// Output the EXPLAIN result for debugging (or handle it as needed)
+	fmt.Println("EXPLAIN result:", explainResult)
+
+	// Retrieve the orders
 	var orders []Order
 	if err := DB.Preload("Items.Product").Where("table_number = ?", tableNumber).Find(&orders).Error; err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to retrieve orders")
 	}
 
+	// Calculate the total amount
 	totalAmount := calculateTotalAmount(orders)
 
+	// Prepare the response
 	response := struct {
 		Orders      []Order `json:"orders"`
 		TotalAmount float64 `json:"total_amount"`
@@ -1404,6 +1425,7 @@ func GetBill(c echo.Context) error {
 		TotalAmount: totalAmount,
 	}
 
+	// Return the JSON response
 	return c.JSON(http.StatusOK, response)
 }
 
