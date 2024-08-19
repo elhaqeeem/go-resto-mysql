@@ -1396,7 +1396,7 @@ func GetBill(c echo.Context) error {
 	explainQuery := `EXPLAIN SELECT orders.*, order_items.*, products.* 
                      FROM orders 
                      JOIN order_items ON items.order_id = orders.id 
-                     JOIN products ON products.id = items.product_id 
+                     JOIN products ON products.id = order_items.product_id 
                      WHERE orders.table_number = ?`
 
 	// Execute the EXPLAIN query
