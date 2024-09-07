@@ -1,5 +1,5 @@
 # Project Title
-<h2> Resto Go (echo) mysql</h2>
+<h3> Resto Go (echo) mysql</h3>
 ## Description
 
 ## Table of Contents
